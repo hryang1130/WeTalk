@@ -50,10 +50,11 @@ class ResClient {
     }
   }
 
-  _request(msgid, obj, timeoutMs = 15000) {
+  _request(msgid, obj, rspMsgid = null, timeoutMs = 15000) {
     return new Promise((resolve, reject) => {
       if (!this.sock) return reject(new Error('resource not connected'));
-      const p = { msgid, resolve, reject };
+      // 注意：ResourceServer 的响应 msgid = 请求 msgid + 1（1037→1038、1033→1034、1003→1004）
+      const p = { msgid: rspMsgid || msgid, resolve, reject };
       this.pending.push(p);
       this.sock.write(encodeFrame(msgid, obj));
       setTimeout(() => {
@@ -75,7 +76,7 @@ class ResClient {
         name, total_size: total, trans_size: slice.length,
         last: seq === totalSeq ? 1 : 0,
         data: slice.toString('base64'), uid,
-      });
+      }, msgid + 1);
       if (rsp.error !== 0) throw new Error('upload failed at seq ' + seq + ': ' + rsp.error);
       lastRsp = rsp;
     }
@@ -89,7 +90,7 @@ class ResClient {
     for (;;) {
       const rsp = await this._request(1033, {
         seq, name, uid, token, client_path: '',
-      });
+      }, 1034);
       if (rsp.error !== 0) throw new Error('download failed at seq ' + seq + ': ' + rsp.error);
       chunks.push(Buffer.from(rsp.data, 'base64'));
       const done = rsp.last === 1 || rsp.last === true;
