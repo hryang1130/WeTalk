@@ -17,3 +17,13 @@ docker/configs/VarifyServer/config.json.bak
 *.log
 .DS_Store
 _*.txt
+_DockerDesktopInstaller.exe
+_repro.sh
+_*.log
+_*.txt
+client-electron/_*.txt
+_DockerDesktopInstaller.exe
+_repro.sh
+_*.log
+_*.txt
+client-electron/_*.txt
