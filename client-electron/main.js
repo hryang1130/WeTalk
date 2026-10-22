@@ -37,7 +37,10 @@ function teardownTcp(reason) {
   if (tcp) { try { tcp.destroy(); } catch (_) {} tcp = null; }
   rxState = null;
   session = null;
-  sendToRenderer('tcp:closed', { reason });
+  // reconnect 是连接前的主动清理、logout 是用户主动退出，都不是"断线"，不通知渲染层
+  if (reason !== 'reconnect' && reason !== 'logout') {
+    sendToRenderer('tcp:closed', { reason });
+  }
 }
 
 ipcMain.handle('http:post', async (_e, { path: apiPath, body, baseUrl }) => {
