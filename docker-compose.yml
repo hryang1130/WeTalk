@@ -39,7 +39,7 @@ services:
       dockerfile: docker/Dockerfile.lars-dns
     container_name: wetalk-lars-dns
     volumes:
-      - ./docker/lars/lars_dns.conf:/app/lars_dns.conf:ro
+      - ./docker/lars/lars_dns.conf:/app/conf/lars_dns.conf:ro
     depends_on:
       mysql:
         condition: service_healthy
@@ -53,7 +53,7 @@ services:
       dockerfile: docker/Dockerfile.lars-reporter
     container_name: wetalk-lars-reporter
     volumes:
-      - ./docker/lars/lars_reporter.conf:/app/lars_reporter.conf:ro
+      - ./docker/lars/lars_reporter.conf:/app/conf/lars_reporter.conf:ro
     depends_on:
       mysql:
         condition: service_healthy
@@ -67,7 +67,7 @@ services:
       dockerfile: docker/Dockerfile.lars-agent
     container_name: wetalk-lars-agent
     volumes:
-      - ./docker/lars/lars_lb_agent.conf:/app/lars_lb_agent.conf:ro
+      - ./docker/lars/lars_lb_agent.conf:/app/conf/lars_lb_agent.conf:ro
     depends_on:
       - lars-dns
       - lars-reporter

@@ -2,8 +2,11 @@ FROM ubuntu:22.04 AS builder
 ARG DEBIAN_FRONTEND=noninteractive
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential cmake pkg-config git ca-certificates \
-    libboost-all-dev libgrpc++-dev protobuf-compiler-grpc libprotobuf-dev \
+    libboost-all-dev libgrpc++-dev protobuf-compiler-grpc \
+    libprotobuf-dev=3.12.4-1ubuntu7.22.04.6 libprotoc-dev=3.12.4-1ubuntu7.22.04.6 protobuf-compiler=3.12.4-1ubuntu7.22.04.6 \
     libhiredis-dev libmysqlcppconn-dev libjsoncpp-dev && rm -rf /var/lib/apt/lists/*
+# jammy 的 connector 1.1.12 头文件在 /usr/include 根下，而代码按 connector 8 布局写 <jdbc/...>
+RUN ln -s /usr/include /usr/local/include/jdbc
 
 WORKDIR /src
 COPY server/ ./server/
@@ -17,8 +20,8 @@ ARG DEBIAN_FRONTEND=noninteractive
 ARG SERVICE
 RUN apt-get update && apt-get install -y --no-install-recommends \
     libboost-system1.74.0 libboost-date-time1.74.0 libboost-filesystem1.74.0 \
-    libboost-uuid1.74.0 libprotobuf23 libgrpc++1 libhiredis0.14 \
-    libmysqlcppconn8-2 libjsoncpp25 && rm -rf /var/lib/apt/lists/*
+    libprotobuf23 libgrpc++1 libhiredis0.14 \
+    libmysqlcppconn7v5 libjsoncpp25 && rm -rf /var/lib/apt/lists/*
 COPY --from=builder /src/build/${SERVICE} /app/service
 # config.ini 由 docker-compose 以只读卷挂载（chat1/chat2 共用 chat 镜像、各自挂 ChatServer1/2 配置）
 WORKDIR /app

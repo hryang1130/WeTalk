@@ -11,6 +11,7 @@
 #include <memory>
 #include <queue>
 #include <mutex>
+#include <condition_variable>
 #include "message.pb.h"
 using message::AddFriendMsg;
 using message::TextChatData;

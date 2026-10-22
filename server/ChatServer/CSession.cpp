@@ -92,7 +92,7 @@ void CSession::AsyncReadBody(int total_len)
 	asyncReadFull(total_len, [self, this, total_len](const boost::system::error_code& ec, std::size_t bytes_transfered) {
 		try {
 			if (ec) {
-				std::cout << "handle read failed, error is " << ec.what() << endl;
+				std::cout << "handle read failed, error is " << ec.message() << endl;
 				Close();
 				DealExceptionSession();
 				return;
@@ -135,7 +135,7 @@ void CSession::AsyncReadHead(int total_len)
 	asyncReadFull(HEAD_TOTAL_LEN, [self, this](const boost::system::error_code& ec, std::size_t bytes_transfered) {
 		try {
 			if (ec) {
-				std::cout << "handle read failed, error is " << ec.what() << endl;
+				std::cout << "handle read failed, error is " << ec.message() << endl;
 				Close();
 				DealExceptionSession();
 				return;
@@ -207,7 +207,7 @@ void CSession::HandleWrite(const boost::system::error_code& error, std::shared_p
 			}
 		}
 		else {
-			std::cout << "handle write failed, error is " << error.what() << endl;
+			std::cout << "handle write failed, error is " << error.message() << endl;
 			Close();
 			DealExceptionSession();
 		}

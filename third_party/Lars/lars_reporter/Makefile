@@ -1,6 +1,6 @@
 TARGET= bin/lars_reporter
 CXX=g++
-CFLAGS=-g -O2 -Wall -Wno-deprecated
+CFLAGS=-g -O2 -Wall -Wno-deprecated -Dmy_bool=bool
 
 BASE=../base
 BASE_H=$(BASE)/include
@@ -16,7 +16,7 @@ MYSQL=$(BASE)/mysql-connector-c
 MYSQL_H=$(MYSQL)/include
 MYSQL_LIB=$(MYSQL)/lib/libmysqlclient.a
 
-OTHER_LIB = -lpthread -ldl -lprotobuf
+OTHER_LIB = -lpthread -ldl -lprotobuf -lssl -lcrypto -lzstd -lm -lresolv
 SRC= ./src
 INC= -I./include -I$(BASE_H) -I$(LARS_REACTOR_H) -I$(MYSQL_H) -I$(PROTO_H)
 

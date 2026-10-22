@@ -5,13 +5,19 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 find_package(Threads REQUIRED)
-find_package(Boost 1.71 REQUIRED COMPONENTS system date_time filesystem uuid)
+find_package(Boost 1.71 REQUIRED COMPONENTS system date_time filesystem)
+# jammy(Ubuntu 22.04) 不发布 boost_uuid 编译库（boost.uuid 头文件在 libboost1.74-dev 内），
+# 手工补一个 header-only 的 Boost::uuid 目标，用法不变
+if(NOT TARGET Boost::uuid)
+    add_library(Boost::uuid INTERFACE IMPORTED)
+    target_include_directories(Boost::uuid INTERFACE ${Boost_INCLUDE_DIRS})
+endif()
 find_package(Protobuf REQUIRED)
 find_package(PkgConfig REQUIRED)
 pkg_check_modules(GRPC REQUIRED grpc++ grpc)
 pkg_check_modules(HIREDIS REQUIRED hiredis)
 find_library(MYSQLCPPCONN_LIB mysqlcppconn REQUIRED)
-find_library(JSONCPP_LIB jsoncpp REQUIRED)
+pkg_check_modules(JSONCPP REQUIRED jsoncpp) # jammy 头文件在 /usr/include/jsoncpp/json/json.h
 
 find_program(GRPC_CPP_PLUGIN grpc_cpp_plugin REQUIRED)
 
@@ -55,12 +61,14 @@ function(wetalk_gen_proto SERVICE_DIR OUT_SRCS)
     set(_gh   ${CMAKE_CURRENT_BINARY_DIR}/${SERVICE_DIR}/message.grpc.pb.h)
     add_custom_command(
         OUTPUT ${_pb} ${_ph} ${_grpc} ${_gh}
+        COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_CURRENT_BINARY_DIR}/${SERVICE_DIR}
         COMMAND protobuf::protoc
         ARGS --grpc_out=${CMAKE_CURRENT_BINARY_DIR}/${SERVICE_DIR}
              --cpp_out=${CMAKE_CURRENT_BINARY_DIR}/${SERVICE_DIR}
              -I${SERVICE_DIR}
              --plugin=protoc-gen-grpc=${GRPC_CPP_PLUGIN}
              ${SERVICE_DIR}/message.proto
+        COMMAND sed -i s/::grpc::internal::CallbackUnaryHandler/::grpc_impl::internal::CallbackUnaryHandler/g ${_gh}
         DEPENDS ${SERVICE_DIR}/message.proto
         COMMENT "Generating protobuf/grpc for ${SERVICE_DIR}")
     set(${OUT_SRCS} ${_pb} ${_grpc} PARENT_SCOPE)
@@ -78,11 +86,13 @@ function(add_wetalk_service NAME)
         ${CMAKE_CURRENT_SOURCE_DIR}/common
         ${CMAKE_CURRENT_BINARY_DIR}/${ARG_DIR}
         ${CMAKE_CURRENT_BINARY_DIR}
+        ${JSONCPP_INCLUDE_DIRS}
+        ${HIREDIS_INCLUDE_DIRS}
         /usr/include/mysql-cppconn-8)
     target_link_libraries(${NAME} PRIVATE
         Boost::system Boost::date_time Boost::filesystem Boost::uuid
         protobuf::libprotobuf grpc++ grpc
-        ${HIREDIS_LIBRARIES} ${MYSQLCPPCONN_LIB} ${JSONCPP_LIB}
+        ${HIREDIS_LIBRARIES} ${MYSQLCPPCONN_LIB} ${JSONCPP_LIBRARIES}
         wetalk_common lars_api Threads::Threads)
 endfunction()
 

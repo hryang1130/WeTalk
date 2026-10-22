@@ -22,14 +22,33 @@ const state = {
   history: {},         // uid -> {last_message_id, load_more, loaded}
   loadingHistory: false,
   imgCache: {},        // 图片名 -> dataURL
+  unread: {},          // uid -> 未读数
+  pane: 'chats',       // 中栏当前 tab
 };
+
+const AVATAR_COLORS = ['#7d2834','#2f6f9e','#2f9e6e','#8a6d2f','#6b4fa0','#a05a2c','#3d7a86','#943e5c'];
+const avatarColor = (uid) => AVATAR_COLORS[Math.abs(Number(uid) || 0) % AVATAR_COLORS.length];
+function avatarEl(uid, name, cls = '') {
+  const d = document.createElement('div');
+  d.className = 'avatar ' + cls;
+  d.style.background = avatarColor(uid);
+  d.textContent = String(name || '?').trim().charAt(0).toUpperCase() || '?';
+  return d;
+}
+const $avatar = { me: null, peer: null };
 
 /* ---------------- 视图切换 ---------------- */
 function showAuth() { $('view-auth').classList.remove('hidden'); $('view-main').classList.add('hidden'); }
-function showMain() { $('view-auth').classList.add('hidden'); $('view-main').classList.remove('hidden'); }
+function showMain() {
+  $('view-auth').classList.add('hidden'); $('view-main').classList.remove('hidden');
+  $avatar.me = avatarEl(state.self.uid, state.self.nick || state.self.name);
+  $('me-avatar').replaceWith($avatar.me);
+  $avatar.me.id = 'me-avatar';
+  renderSessions(); renderApplies(); renderContacts(); updateBadges();
+}
 
 /* ---------------- 登录 / 注册 ---------------- */
-const gateUrl = () => $('gate-url').value.trim().replace(/\/+$/, '') || 'http://127.0.0.1:8080';
+const gateUrl = () => ($('pane-title') ? '' : '') || ($('gate-url').value.trim().replace(/\/+$/, '') || 'http://127.0.0.1:8080');
 
 $('tab-login').onclick = () => {
   $('tab-login').classList.add('active'); $('tab-register').classList.remove('active');
@@ -98,38 +117,99 @@ window.wetalk.onFrame(({ msgid, obj }) => {
     default: console.log('unhandled msgid', msgid, obj);
   }
 });
-window.wetalk.onClosed(({ reason }) => { alert(`连接断开（${reason}），请重新登录`); showAuth(); });
+window.wetalk.onClosed(({ reason }) => { alert(`连接断开（${reason}），请重新登录`); location.reload(); });
 window.wetalk.onError(({ message }) => console.warn('tcp error:', message));
+
+function friendName(uid) {
+  const f = state.friends.find((x) => x.uid === uid);
+  return (f && (f.nick || f.name)) || String(uid);
+}
 
 function onLoginRsp(obj) {
   if (obj.error !== 0) { msg('login-msg', `TCP 认证失败：${errText(obj)}`); return; }
   state.self = { ...state.self, name: obj.name, nick: obj.nick, icon: obj.icon };
   state.friends = obj.friend_list || [];
   state.applies = obj.apply_list || [];
-  $('me-name').textContent = obj.nick || obj.name;
-  $('me-uid').textContent = `uid ${obj.uid}`;
-  renderFriends(); renderApplies();
   msg('login-msg', '登录成功', true);
   showMain();
 }
 
-/* ---------------- 好友 / 申请 ---------------- */
-function renderFriends() {
+/* ---------------- 中栏 tab ---------------- */
+function switchPane(pane) {
+  state.pane = pane;
+  $('nav-chats').classList.toggle('active', pane === 'chats');
+  $('nav-contacts').classList.toggle('active', pane === 'contacts');
+  $('session-list').classList.toggle('hidden', pane !== 'chats');
+  $('contacts-pane').classList.toggle('hidden', pane !== 'contacts');
+  $('pane-title').textContent = pane === 'chats' ? '消息' : '联系人';
+}
+$('nav-chats').onclick = () => switchPane('chats');
+$('nav-contacts').onclick = () => switchPane('contacts');
+
+function updateBadges() {
+  const unreadTotal = Object.values(state.unread).reduce((a, b) => a + b, 0);
+  $('nav-chats-badge').textContent = unreadTotal;
+  $('nav-chats-badge').classList.toggle('hidden', unreadTotal === 0);
+  $('nav-contacts-badge').textContent = state.applies.length;
+  $('nav-contacts-badge').classList.toggle('hidden', state.applies.length === 0);
+}
+
+/* ---------------- 会话列表（消息 tab） ---------------- */
+function renderSessions() {
+  const ul = $('session-list'); ul.innerHTML = '';
+  const uids = new Set([...Object.keys(state.chats).map(Number), ...state.friends.map((f) => f.uid)]);
+  const ordered = [...uids].sort((a, b) => {
+    const la = state.chats[a]?.length || 0, lb = state.chats[b]?.length || 0;
+    return lb - la;
+  });
+  if (!ordered.length) { ul.innerHTML = '<div class="empty-tip">还没有会话<br>去「联系人」里找个好友吧</div>'; return; }
+  for (const uid of ordered) {
+    const li = document.createElement('li');
+    if (state.active === uid) li.classList.add('active');
+    li.appendChild(avatarEl(uid, friendName(uid), 'lg'));
+    const main = document.createElement('div'); main.className = 'li-main';
+    const msgs = state.chats[uid] || [];
+    const last = msgs[msgs.length - 1];
+    const preview = last ? (last.type === 'img' ? '[图片]' : last.content) : '开始聊天';
+    main.innerHTML = `<div class="li-name">${escapeHtml(friendName(uid))}</div>
+      <div class="li-preview">${escapeHtml(preview)}</div>`;
+    li.appendChild(main);
+    const side = document.createElement('div'); side.className = 'li-side';
+    if (last?.time) { const t = document.createElement('div'); t.className = 'li-time'; t.textContent = last.time; side.appendChild(t); }
+    if (state.unread[uid]) { const u = document.createElement('div'); u.className = 'unread-dot'; u.textContent = state.unread[uid]; side.appendChild(u); }
+    li.appendChild(side);
+    li.onclick = () => openChat(uid);
+    ul.appendChild(li);
+  }
+}
+
+/* ---------------- 联系人（联系人 tab） ---------------- */
+function renderContacts() {
   const ul = $('friend-list'); ul.innerHTML = '';
+  if (!state.friends.length) { ul.innerHTML = '<div class="empty-tip">暂无好友</div>'; return; }
   for (const f of state.friends) {
     const li = document.createElement('li');
-    li.innerHTML = `<span>${f.nick || f.name}</span><span class="muted">#${f.uid}</span>`;
-    li.onclick = () => openChat(f.uid, f.nick || f.name);
     if (state.active === f.uid) li.classList.add('active');
+    li.appendChild(avatarEl(f.uid, f.nick || f.name));
+    const main = document.createElement('div'); main.className = 'li-main';
+    main.innerHTML = `<div class="li-name">${escapeHtml(f.nick || f.name)}</div>
+      <div class="li-preview muted">${escapeHtml(f.desc || '#' + f.uid)}</div>`;
+    li.appendChild(main);
+    li.onclick = () => { switchPane('chats'); openChat(f.uid); };
     ul.appendChild(li);
   }
 }
 
 function renderApplies() {
   const ul = $('apply-list'); ul.innerHTML = '';
+  if (!state.applies.length) { ul.innerHTML = '<div class="empty-tip">暂无申请</div>'; }
   for (const a of state.applies) {
     const li = document.createElement('li');
-    li.innerHTML = `<span>${a.name || a.nick || a.uid} 请求加好友</span>`;
+    li.appendChild(avatarEl(a.uid, a.name || a.nick));
+    const main = document.createElement('div'); main.className = 'li-main';
+    main.innerHTML = `<div class="li-name">${escapeHtml(a.name || a.nick || String(a.uid))}</div>
+      <div class="li-preview">请求加你为好友</div>`;
+    li.appendChild(main);
     const btn = document.createElement('button');
     btn.className = 'tiny'; btn.textContent = '同意';
     btn.onclick = () => window.wetalk.tcpSend(MSG_IDS.ID_AUTH_FRIEND_REQ, {
@@ -138,17 +218,7 @@ function renderApplies() {
     li.appendChild(btn);
     ul.appendChild(li);
   }
-}
-
-function onNotifyApply(obj) { // 1011 收到好友申请
-  state.applies.push({ uid: obj.applyuid, name: obj.name, nick: obj.nick });
-  renderApplies();
-}
-function onNotifyAuth(obj) { // 1015 好友认证通过（对方同意了我的申请）
-  // 对方信息在 obj.from_name 等字段（服务端构造），做防御式渲染
-  const f = { uid: obj.touid === state.self.uid ? obj.fromuid : obj.touid, name: obj.name || obj.from_name || String(obj.fromuid), nick: obj.nick };
-  if (!state.friends.some((x) => x.uid === f.uid)) state.friends.push(f);
-  renderFriends();
+  updateBadges();
 }
 
 /* ---------------- 搜索 / 添加好友 ---------------- */
@@ -156,15 +226,22 @@ $('btn-search').onclick = () => {
   const q = $('search-input').value.trim();
   if (q) window.wetalk.tcpSend(MSG_IDS.ID_SEARCH_USER_REQ, { uid: q });
 };
+$('search-input').addEventListener('keydown', (e) => { if (e.key === 'Enter') $('btn-search').click(); });
 
 function onSearchRsp(obj) {
   const box = $('search-result'); box.classList.remove('hidden');
-  if (obj.error !== 0 || !obj.uid) { box.innerHTML = '<div>未找到该用户</div>'; return; }
+  if (obj.error !== 0 || !obj.uid) { box.innerHTML = '<div class="muted">未找到该用户</div>'; return; }
   const already = state.friends.some((f) => f.uid === obj.uid);
-  box.innerHTML = `<div><b>${obj.name}</b> ${obj.nick || ''} #${obj.uid}<br><span class="muted">${obj.desc || ''}</span></div>`;
+  box.innerHTML = '';
+  const line = document.createElement('div'); line.className = 'row-line';
+  line.appendChild(avatarEl(obj.uid, obj.name, 'sm'));
+  const info = document.createElement('div');
+  info.innerHTML = `<b>${escapeHtml(obj.name)}</b> <span class="muted">#${obj.uid}</span><br>
+    <span class="muted">${escapeHtml(obj.desc || obj.nick || '')}</span>`;
+  line.appendChild(info); box.appendChild(line);
   if (obj.uid !== state.self.uid && !already) {
     const btn = document.createElement('button');
-    btn.className = 'ghost small'; btn.textContent = '加好友'; btn.style.marginTop = '6px';
+    btn.className = 'tiny'; btn.textContent = '+ 加好友'; btn.style.marginTop = '4px';
     btn.onclick = () => window.wetalk.tcpSend(MSG_IDS.ID_ADD_FRIEND_REQ, {
       uid: state.self.uid, applyname: state.self.nick || state.self.name, bakname: '', touid: obj.uid,
     });
@@ -174,14 +251,19 @@ function onSearchRsp(obj) {
 function onAddFriendRsp(obj) { if (obj.error === 0) alert('申请已发送，等待对方同意'); }
 
 /* ---------------- 聊天 ---------------- */
-function openChat(uid, name) {
+function openChat(uid) {
+  uid = Number(uid);
   state.active = uid;
   if (!state.chats[uid]) state.chats[uid] = [];
   if (state.threads[uid] === undefined) state.threads[uid] = 0;
-  $('chat-title').textContent = `${name}  #${uid}`;
+  state.unread[uid] = 0;
+  $('chat-peer-name').textContent = friendName(uid);
+  $('chat-peer-uid').textContent = 'uid ' + uid;
+  const pa = avatarEl(uid, friendName(uid), 'sm'); pa.id = 'chat-peer-avatar';
+  $('chat-peer-avatar').replaceWith(pa);
   $('btn-send').disabled = false;
   $('btn-img').disabled = false;
-  renderFriends(); renderMsgs();
+  renderSessions(); renderContacts(); updateBadges(); renderMsgs();
   loadHistory(uid);
 }
 
@@ -195,9 +277,8 @@ function loadHistory(uid) {
   window.wetalk.tcpSend(MSG_IDS.ID_LOAD_CHAT_MSG_REQ, { thread_id: tid, message_id: h.last_message_id });
 }
 
-function onHistoryRsp(obj) { // {error, thread_id, last_message_id, load_more, chat_datas:[{sender,msg_content,chat_time,unique_id,status}]}
+function onHistoryRsp(obj) { // {error, thread_id, last_message_id, load_more, chat_datas}
   state.loadingHistory = false;
-  // 找到该 thread 对应的会话（thread_id ↔ uid 双射由本地 threads 表维护）
   const uid = Object.keys(state.threads).find((u) => state.threads[u] === obj.thread_id);
   if (!uid || obj.error !== 0) return;
   const uidNum = Number(uid);
@@ -209,13 +290,12 @@ function onHistoryRsp(obj) { // {error, thread_id, last_message_id, load_more, c
     content: c.msg_content,
     time: fmtTime(c.chat_time),
     unique_id: String(c.unique_id || ''),
-  })).reverse(); // 服务端按时间倒序返回（游标向前翻页），反转成时间正序
+  })).reverse();
   arr.unshift(...older);
   h.last_message_id = obj.last_message_id;
   h.load_more = !!obj.load_more;
   h.loaded = true;
   if (state.active === uidNum) renderMsgs(true);
-  // 历史里的图片懒加载
   for (const m of older) if (m.type === 'img' && !state.imgCache[m.content]) fetchImage(m.content);
 }
 
@@ -226,32 +306,53 @@ function onImgRsp(obj) { // 1036 图片消息回执：thread_id 回填 + 去 pen
   if (state.active === obj.touid) renderMsgs();
 }
 
+/* ---------------- 消息渲染 ---------------- */
+function pushMsg(uid, m) {
+  if (!state.chats[uid]) state.chats[uid] = [];
+  state.chats[uid].push(m);
+  if (state.active === uid) renderMsgs();
+  else { state.unread[uid] = (state.unread[uid] || 0) + 1; renderSessions(); updateBadges(); }
+}
+
 function renderMsgs(keepScrollTop) {
   const box = $('msg-list');
   const prevHeight = box.scrollHeight;
   box.innerHTML = '';
-  for (const m of state.chats[state.active] || []) {
+  const msgs = state.chats[state.active] || [];
+  if (!msgs.length) {
+    const tip = document.createElement('div'); tip.className = 'system';
+    tip.textContent = '开始你的第一次对话吧';
+    box.appendChild(tip);
+  }
+  for (const m of msgs) {
+    const row = document.createElement('div');
+    row.className = 'msg-row ' + (m.mine ? 'mine' : '');
+    const peer = state.active;
+    row.appendChild(m.mine
+      ? ($avatar.me ? $avatar.me.cloneNode(true) : avatarEl(state.self.uid, state.self.name))
+      : avatarEl(peer, friendName(peer)));
+    const body = document.createElement('div'); body.className = 'msg-body ' + (m.mine ? 'mine' : '');
     const div = document.createElement('div');
-    div.className = 'bubble ' + (m.mine ? 'mine' : 'theirs') + (m.pending ? ' pending' : '');
+    div.className = 'bubble' + (m.pending ? ' pending' : '');
     if (m.unique_id) div.dataset.unique = m.unique_id;
     if (m.type === 'img') {
       const img = document.createElement('img');
       const url = m.dataUrl || state.imgCache[m.content];
-      if (url) { img.src = url; }
+      if (url) img.src = url;
       else { img.className = 'loading'; img.alt = m.content; fetchImage(m.content); }
       div.appendChild(img);
-      const meta = document.createElement('span');
-      meta.className = 'meta';
+      const meta = document.createElement('span'); meta.className = 'meta';
       meta.textContent = `${m.content} ${m.time || ''}`;
       div.appendChild(meta);
     } else {
       div.innerHTML = `${escapeHtml(m.content)}<span class="meta">${m.time}${m.pending ? ' · 发送中' : ''}</span>`;
     }
-    box.appendChild(div);
+    body.appendChild(div);
+    row.appendChild(body);
+    box.appendChild(row);
   }
-  if (keepScrollTop) box.scrollTop = box.scrollHeight - prevHeight; // 翻页保持视口
+  if (keepScrollTop) box.scrollTop = box.scrollHeight - prevHeight;
   else box.scrollTop = box.scrollHeight;
-  // 有更多历史时，滚到顶部触发加载
   const h = state.history[state.active];
   if (h && h.load_more) {
     box.onscroll = () => { if (box.scrollTop === 0) loadHistory(state.active); };
@@ -260,15 +361,20 @@ function renderMsgs(keepScrollTop) {
 
 function nowStr() { return new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' }); }
 function escapeHtml(s) { return String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
+function fmtTime(ts) {
+  if (!ts) return '';
+  const d = new Date(Number(ts) * (Number(ts) > 1e12 ? 1 : 1000));
+  return isNaN(d) ? String(ts) : d.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' });
+}
 
+/* ---------------- 发送文本 ---------------- */
 function sendText() {
   const content = $('input-box').value.trim();
   if (!content || !state.active) return;
   const uid = state.active;
   const unique_id = crypto.randomUUID();
-  state.chats[uid].push({ mine: true, content, time: nowStr(), pending: true, unique_id });
+  pushMsg(uid, { type: 'text', mine: true, content, time: nowStr(), pending: true, unique_id });
   $('input-box').value = '';
-  renderMsgs();
   window.wetalk.tcpSend(MSG_IDS.ID_TEXT_CHAT_MSG_REQ, {
     fromuid: state.self.uid, touid: uid, thread_id: state.threads[uid] || 0,
     text_array: [{ content, unique_id }],
@@ -277,7 +383,7 @@ function sendText() {
 $('btn-send').onclick = sendText;
 $('input-box').addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendText(); } });
 
-/* ---------------- 图片消息（ResourceServer 上传 + ChatServer 1035 落库） ---------------- */
+/* ---------------- 图片消息 ---------------- */
 async function ensureRes() {
   const { reshost, resport } = state.self;
   await window.wetalk.resConnect(reshost, Number(resport) || 9090);
@@ -299,8 +405,8 @@ $('img-input').addEventListener('change', async (e) => {
     const uid = state.active;
     const unique_id = crypto.randomUUID();
     state.threads[uid] = state.threads[uid] || 0;
-    state.chats[uid].push({ type: 'img', mine: true, content: name, time: nowStr(), unique_id, pending: true, dataUrl: URL.createObjectURL(new Blob([buf])) });
-    renderMsgs();
+    pushMsg(uid, { type: 'img', mine: true, content: name, time: nowStr(), unique_id, pending: true,
+      dataUrl: URL.createObjectURL(new Blob([buf])) });
     window.wetalk.tcpSend(MSG_IDS.ID_IMG_CHAT_MSG_REQ, {
       fromuid: state.self.uid, touid: uid, thread_id: state.threads[uid],
       md5: md5hex, name, token: state.self.token,
@@ -333,6 +439,7 @@ async function fetchImage(name) { // 从 ResourceServer 下载图片并缓存
   }
 }
 
+/* ---------------- 通知处理 ---------------- */
 function onTextRsp(obj) { // 1018 我发的消息的回执：更新 pending 气泡 + 回填 thread_id
   if (obj.touid && state.threads[obj.touid] !== undefined) state.threads[obj.touid] = obj.thread_id;
   const arr = state.chats[obj.touid] || [];
@@ -341,6 +448,7 @@ function onTextRsp(obj) { // 1018 我发的消息的回执：更新 pending 气�
     if (m) { m.pending = false; m.time = fmtTime(cd.chat_time) || m.time; }
   }
   if (state.active === obj.touid) renderMsgs();
+  renderSessions();
 }
 
 function onTextNotify(obj) { // 1019 收到对方消息
@@ -348,22 +456,21 @@ function onTextNotify(obj) { // 1019 收到对方消息
   if (state.threads[uid] !== undefined || state.friends.some((f) => f.uid === uid)) {
     state.threads[uid] = obj.thread_id || state.threads[uid] || 0;
   }
-  if (!state.chats[uid]) state.chats[uid] = [];
   for (const cd of obj.chat_datas || []) {
-    state.chats[uid].push({ mine: false, content: cd.content, time: fmtTime(cd.chat_time), unique_id: cd.unique_id });
-  }
-  if (state.active === uid) renderMsgs();
-  else {
-    // 未打开会话：高亮一下标题栏提示（简易实现）
-    const title = $('chat-title'); title.style.color = '#e74c3c';
-    setTimeout(() => (title.style.color = ''), 800);
+    pushMsg(uid, { type: 'text', mine: false, content: cd.content, time: fmtTime(cd.chat_time), unique_id: cd.unique_id });
   }
 }
 
-function fmtTime(ts) {
-  if (!ts) return '';
-  const d = new Date(Number(ts) * (Number(ts) > 1e12 ? 1 : 1000));
-  return isNaN(d) ? String(ts) : d.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' });
+function onNotifyApply(obj) { // 1011 收到好友申请
+  state.applies.push({ uid: obj.applyuid, name: obj.name, nick: obj.nick });
+  renderApplies();
+  switchPane('contacts');
+}
+function onNotifyAuth(obj) { // 1015 好友认证通过（对方同意了我的申请）
+  const f = { uid: obj.touid === state.self.uid ? obj.fromuid : obj.touid,
+    name: obj.name || obj.from_name || String(obj.fromuid), nick: obj.nick };
+  if (!state.friends.some((x) => x.uid === f.uid)) state.friends.push(f);
+  renderContacts();
 }
 
 /* ---------------- 退出 ---------------- */

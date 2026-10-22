@@ -2,7 +2,8 @@
 #include "const.h"
 #include "Singleton.h"
 #include "ConfigMgr.h"
-#include <grpcpp/grpcpp.h> 
+#include <grpcpp/grpcpp.h>
+#include <condition_variable> 
 #include "message.grpc.pb.h"
 #include "message.pb.h"
 
@@ -47,7 +48,7 @@ public:
 			}
 			return !connections_.empty();
 			});
-		//如果停止则直接返回空指针
+		//停止直臃乜指
 		if (b_stop_) {
 			return  nullptr;
 		}

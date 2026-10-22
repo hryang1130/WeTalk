@@ -5,6 +5,7 @@
 #include <csignal>
 #include <thread>
 #include <mutex>
+#include <condition_variable>
 #include "AsioIOServicePool.h"
 #include "CServer.h"
 #include "ConfigMgr.h"

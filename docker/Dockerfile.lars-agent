@@ -2,10 +2,14 @@ FROM ubuntu:22.04 AS builder
 ARG DEBIAN_FRONTEND=noninteractive
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential make g++ protobuf-compiler libprotobuf-dev \
-    libmysqlclient-dev && rm -rf /var/lib/apt/lists/*
+    libmysqlclient-dev libssl-dev libzstd-dev && rm -rf /var/lib/apt/lists/*
 WORKDIR /src/third_party/Lars
 COPY third_party/Lars/ ./
 RUN protoc --cpp_out=base/proto -Ibase/proto base/proto/lars.proto
+# Lars Makefile 找 vendored mysql-connector-c（未入库），用系统 libmysqlclient-dev 顶替
+RUN mkdir -p base/mysql-connector-c/lib && \
+    ln -s /usr/include/mysql base/mysql-connector-c/include && \
+    ln -s /usr/lib/x86_64-linux-gnu/libmysqlclient.a base/mysql-connector-c/lib/libmysqlclient.a
 RUN make -C lars_reactor && make -C lars_loadbalance_agent
 
 FROM ubuntu:22.04
@@ -13,4 +17,4 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libprotobuf23 libmysqlclient21 && rm -rf /var/lib/apt/lists/*
 COPY --from=builder /src/third_party/Lars/lars_loadbalance_agent/bin/* /app/
 WORKDIR /app
-CMD ["/app/lars_loadbalance_agent"]
+CMD ["/app/lars_lb_agent"]

@@ -1,5 +1,6 @@
 #include "lars_api.h"
 #include "lars.pb.h"
+#include "message.h" // lars_reactor: msg_head / MESSAGE_HEAD_LEN
 #include <string.h>
 #include <sys/socket.h>
 #include <sys/types.h>
@@ -148,14 +149,14 @@ void lars_client::report(int modid, int cmdid, const std::string& ip, int port, 
     lars::ReportRequest req;
     req.set_modid(modid);
     req.set_cmdid(cmdid);
-    req.set_caller(0);
 
-    lars::HostInfo* hlist = req.add_host();
+    // 本仓库 vendored Lars 的 proto：ReportRequest = {modid, cmdid, host(单个), retcode}
     struct in_addr inaddr;
     inet_aton(ip.c_str(), &inaddr);
-    hlist->set_ip(htonl(inaddr.s_addr));
-    hlist->set_port(port);
-    hlist->set_retcode(retcode);
+    lars::HostInfo* host = req.mutable_host();
+    host->set_ip(htonl(inaddr.s_addr));
+    host->set_port(port);
+    req.set_retcode(retcode);
 
     char write_buf[4096];
     msg_head head;
