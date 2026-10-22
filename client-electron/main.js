@@ -18,6 +18,8 @@ function createWindow() {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
       nodeIntegration: false,
+      // preload 需要 require 本地模块(core/protocol.js)，Electron 20+ 默认 sandbox 会禁掉
+      sandbox: false,
     },
   });
   win.setMenuBarVisibility(false);

@@ -1,4 +1,11 @@
 // 渲染进程：仅通过 window.wetalk (preload) 与主进程通信（contextIsolation 下不能 require）。
+if (!window.wetalk) {
+  document.body.innerHTML =
+    '<div style="padding:40px;font-family:sans-serif;color:#c0392b;line-height:1.8">' +
+    '<h2>客户端初始化失败</h2><p>preload 未注入（window.wetalk 不存在）。</p>' +
+    '<p>请确认 main.js 中 webPreferences.sandbox = false，且 preload 路径正确。</p></div>';
+  throw new Error('preload not injected');
+}
 const { MSG_IDS, ERROR_CODES } = window.wetalk;
 
 const $ = (id) => document.getElementById(id);
