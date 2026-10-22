@@ -2,7 +2,7 @@
 const { MSG_IDS, ERROR_CODES } = window.wetalk;
 
 const $ = (id) => document.getElementById(id);
-const errText = (code) => ERROR_CODES[code] || `错误码 ${code}`;
+const errText = (r) => (r && r.detail) ? r.detail : (ERROR_CODES[r && r.error] || `错误码 ${r && r.error}`);
 
 const state = {
   self: null,          // {uid, name, nick, icon, email, token}
@@ -33,37 +33,39 @@ $('btn-varify').onclick = async () => {
   const email = $('reg-email').value.trim();
   if (!email) return msg('reg-msg', '请先填邮箱');
   const r = await window.wetalk.httpPost('/get_varifycode', { email }, gateUrl());
-  msg('reg-msg', r.error === 0 ? '验证码已发送，请查收邮箱' : `发送失败：${errText(r.error)}`, r.error === 0);
+  msg('reg-msg', r.error === 0 ? '验证码已发送，请查收邮箱' : `发送失败：${errText(r)}`, r.error === 0);
 };
 
 $('form-register').onsubmit = async (e) => {
   e.preventDefault();
-  const body = {
-    email: $('reg-email').value.trim(),
-    user: $('reg-user').value.trim(),
-    nick: $('reg-nick').value.trim() || $('reg-user').value.trim(),
-    passwd: $('reg-passwd').value,
-    confirm: $('reg-confirm').value,
-    icon: '1',
-    varifycode: $('reg-varifycode').value.trim(),
-  };
-  const r = await window.wetalk.httpPost('/user_register', body, gateUrl());
-  if (r.error === 0) { msg('reg-msg', `注册成功，uid=${r.uid}，请切换到登录`, true); $('tab-login').click(); }
-  else msg('reg-msg', `注册失败：${errText(r.error)}`);
+  try {
+    const body = {
+      email: $('reg-email').value.trim(),
+      user: $('reg-user').value.trim(),
+      nick: $('reg-nick').value.trim() || $('reg-user').value.trim(),
+      passwd: $('reg-passwd').value,
+      confirm: $('reg-confirm').value,
+      icon: '1',
+      varifycode: $('reg-varifycode').value.trim(),
+    };
+    const r = await window.wetalk.httpPost('/user_register', body, gateUrl());
+    if (r.error === 0) { msg('reg-msg', `注册成功，uid=${r.uid}，请切换到登录`, true); $('tab-login').click(); }
+    else msg('reg-msg', `注册失败：${errText(r)}`);
+  } catch (err) { msg('reg-msg', '注册异常：' + err.message); }
 };
 
 $('form-login').onsubmit = async (e) => {
   e.preventDefault();
-  const email = $('login-email').value.trim();
-  const r = await window.wetalk.httpPost('/user_login', { email, passwd: $('login-passwd').value }, gateUrl());
-  if (r.error !== 0) return msg('login-msg', `登录失败：${errText(r.error)}`);
-  // HTTP 登录返回：{uid, token, chathost, chatport, reshost, resport}
   try {
+    const email = $('login-email').value.trim();
+    const r = await window.wetalk.httpPost('/user_login', { email, passwd: $('login-passwd').value }, gateUrl());
+    if (r.error !== 0) return msg('login-msg', `登录失败：${errText(r)}`);
+    // HTTP 登录返回：{uid, token, chathost, chatport, reshost, resport}
     await window.wetalk.tcpConnect({ host: r.chathost, port: Number(r.chatport), uid: r.uid, token: r.token });
     state.self = { uid: r.uid, email, token: r.token };
     msg('login-msg', '已连接聊天服务器，认证中…', true);
   } catch (err) {
-    msg('login-msg', `连接聊天服务器失败：${err.message}`);
+    msg('login-msg', '登录异常：' + err.message);
   }
 };
 
@@ -87,7 +89,7 @@ window.wetalk.onClosed(({ reason }) => { alert(`连接断开（${reason}），�
 window.wetalk.onError(({ message }) => console.warn('tcp error:', message));
 
 function onLoginRsp(obj) {
-  if (obj.error !== 0) { msg('login-msg', `TCP 认证失败：${errText(obj.error)}`); return; }
+  if (obj.error !== 0) { msg('login-msg', `TCP 认证失败：${errText(obj)}`); return; }
   state.self = { ...state.self, name: obj.name, nick: obj.nick, icon: obj.icon };
   state.friends = obj.friend_list || [];
   state.applies = obj.apply_list || [];

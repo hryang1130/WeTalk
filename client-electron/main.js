@@ -42,12 +42,17 @@ function teardownTcp(reason) {
 
 ipcMain.handle('http:post', async (_e, { path: apiPath, body, baseUrl }) => {
   const base = baseUrl || 'http://127.0.0.1:8080';
-  const res = await fetch(base + apiPath, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body || {}),
-  });
-  return res.json();
+  try {
+    const res = await fetch(base + apiPath, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body || {}),
+    });
+    return await res.json();
+  } catch (err) {
+    console.log('[http:post] FAIL', base + apiPath, err.message);
+    return { error: -1, detail: `无法连接 ${base}：${err.message}` };
+  }
 });
 
 ipcMain.handle('tcp:connect', (_e, { host, port, uid, token }) => {
@@ -58,10 +63,12 @@ ipcMain.handle('tcp:connect', (_e, { host, port, uid, token }) => {
     let settled = false;
 
     sock.on('connect', () => {
+      console.log('[tcp] connected', host + ':' + port);
       tcp = sock;
       session = { uid, token, chathost: host, chatport: port };
       // TCP 登录认证：服务端 MSG_CHAT_LOGIN(1005) 校验 {uid, token}
       sock.write(encodeFrame(MSG_IDS.MSG_CHAT_LOGIN, { uid, token }));
+      console.log('[tcp] sent MSG_CHAT_LOGIN');
       // 心跳：服务端 ID_HEART_BEAT_REQ(1023) -> 1024
       heartbeatTimer = setInterval(() => {
         if (tcp) tcp.write(encodeFrame(MSG_IDS.ID_HEART_BEAT_REQ, {}));
@@ -71,6 +78,7 @@ ipcMain.handle('tcp:connect', (_e, { host, port, uid, token }) => {
     });
 
     sock.on('data', (chunk) => {
+      console.log('[tcp] recv', chunk.length, 'bytes');
       const frames = decodeFrames(rxState, chunk, (err) => {
         sendToRenderer('tcp:error', { message: err.message });
       });
