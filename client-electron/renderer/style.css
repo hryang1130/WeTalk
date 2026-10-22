@@ -1,0 +1,56 @@
+:root { --bg:#f5f6fa; --card:#fff; --line:#e5e7ee; --brand:#7d2834; --brand2:#a03a48; --text:#2b2f38; --muted:#8a90a0; }
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: "Segoe UI", "Microsoft YaHei", sans-serif; background: var(--bg); color: var(--text); height: 100vh; overflow: hidden; }
+.hidden { display: none !important; }
+button { cursor: pointer; border: none; border-radius: 6px; font-size: 14px; }
+button.primary { background: var(--brand); color: #fff; padding: 10px; width: 100%; }
+button.primary:hover { background: var(--brand2); }
+button.ghost { background: transparent; border: 1px solid var(--line); color: var(--muted); padding: 8px 12px; }
+button.ghost:hover { color: var(--brand); border-color: var(--brand); }
+button.small { padding: 4px 10px; font-size: 12px; }
+input, textarea { border: 1px solid var(--line); border-radius: 6px; padding: 10px; font-size: 14px; width: 100%; background: #fff; outline: none; }
+input:focus, textarea:focus { border-color: var(--brand); }
+
+/* 登录页 */
+.auth-wrap { display: flex; align-items: center; justify-content: center; height: 100vh; }
+.auth-card { width: 380px; background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 28px; box-shadow: 0 8px 30px rgba(0,0,0,.06); }
+.brand { text-align: center; color: var(--brand); margin-bottom: 18px; letter-spacing: 2px; }
+.tabs { display: flex; gap: 8px; margin-bottom: 16px; }
+.tab { flex: 1; padding: 8px; background: transparent; border-bottom: 2px solid transparent; color: var(--muted); }
+.tab.active { color: var(--brand); border-bottom-color: var(--brand); }
+.stack { display: flex; flex-direction: column; gap: 10px; }
+.row { display: flex; gap: 8px; }
+.row input { flex: 1; }
+.msg { font-size: 12px; color: #c0392b; min-height: 16px; }
+.msg.ok { color: #1e8e5a; }
+.hint { margin-top: 14px; font-size: 11px; color: var(--muted); line-height: 1.5; }
+
+/* 主界面 */
+.main { display: flex; height: 100vh; }
+.sidebar { width: 280px; background: var(--card); border-right: 1px solid var(--line); display: flex; flex-direction: column; padding: 14px; gap: 8px; }
+.me { display: flex; align-items: center; gap: 8px; padding-bottom: 10px; border-bottom: 1px solid var(--line); }
+.me-name { font-weight: 600; flex: 1; }
+.me-uid { font-size: 11px; color: var(--muted); }
+.search-row { display: flex; gap: 8px; }
+.search-result { background: #faf7f2; border: 1px solid #efe3d8; border-radius: 8px; padding: 10px; font-size: 13px; }
+.section-title { font-size: 12px; color: var(--muted); margin-top: 6px; }
+.list { list-style: none; overflow-y: auto; max-height: 32vh; }
+.list li { padding: 8px 10px; border-radius: 6px; cursor: pointer; display: flex; justify-content: space-between; align-items: center; }
+.list li:hover { background: #f4ece9; }
+.list li.active { background: var(--brand); color: #fff; }
+.badge { background: #e74c3c; color: #fff; border-radius: 10px; font-size: 11px; padding: 1px 7px; }
+.list button.tiny { padding: 2px 8px; font-size: 11px; border: 1px solid var(--brand); color: var(--brand); background: #fff; }
+
+.chat-area { flex: 1; display: flex; flex-direction: column; }
+.chat-title { padding: 14px 18px; background: var(--card); border-bottom: 1px solid var(--line); font-weight: 600; }
+.msg-list { flex: 1; overflow-y: auto; padding: 18px; display: flex; flex-direction: column; gap: 8px; }
+.bubble { max-width: 62%; padding: 9px 12px; border-radius: 10px; font-size: 14px; line-height: 1.45; word-break: break-all; }
+.bubble.mine { align-self: flex-end; background: var(--brand); color: #fff; border-bottom-right-radius: 2px; }
+.bubble.theirs { align-self: flex-start; background: #fff; border: 1px solid var(--line); border-bottom-left-radius: 2px; }
+.bubble .meta { display: block; font-size: 10px; opacity: .65; margin-top: 3px; }
+.bubble.pending { opacity: .55; }
+.system { align-self: center; font-size: 11px; color: var(--muted); }
+.composer { display: flex; gap: 10px; padding: 12px 16px; background: var(--card); border-top: 1px solid var(--line); align-items: flex-end; }
+.composer textarea { resize: none; }
+.composer button { width: 90px; padding: 10px; }
+.composer button:disabled { background: #ccc; cursor: not-allowed; }
