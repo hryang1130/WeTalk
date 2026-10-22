@@ -1,0 +1,217 @@
+name: wetalk
+
+networks:
+  wetalk:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16
+
+services:
+  mysql:
+    image: mysql:8.0
+    container_name: wetalk-mysql
+    environment:
+      MYSQL_ROOT_PASSWORD: "123456"
+    volumes:
+      - ./docker/mysql/init:/docker-entrypoint-initdb.d:ro
+      - mysql-data:/var/lib/mysql
+    networks:
+      wetalk:
+        ipv4_address: 172.20.0.10
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-uroot", "-p123456"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  redis:
+    image: redis:7-alpine
+    container_name: wetalk-redis
+    command: ["redis-server", "--requirepass", "123456"]
+    networks:
+      wetalk:
+        ipv4_address: 172.20.0.5
+
+  lars-dns:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.lars-dns
+    container_name: wetalk-lars-dns
+    volumes:
+      - ./docker/lars/lars_dns.conf:/app/lars_dns.conf:ro
+    depends_on:
+      mysql:
+        condition: service_healthy
+    networks:
+      wetalk:
+        ipv4_address: 172.20.0.20
+
+  lars-reporter:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.lars-reporter
+    container_name: wetalk-lars-reporter
+    volumes:
+      - ./docker/lars/lars_reporter.conf:/app/lars_reporter.conf:ro
+    depends_on:
+      mysql:
+        condition: service_healthy
+    networks:
+      wetalk:
+        ipv4_address: 172.20.0.21
+
+  lars-agent:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.lars-agent
+    container_name: wetalk-lars-agent
+    volumes:
+      - ./docker/lars/lars_lb_agent.conf:/app/lars_lb_agent.conf:ro
+    depends_on:
+      - lars-dns
+      - lars-reporter
+    networks:
+      wetalk:
+        ipv4_address: 172.20.0.22
+
+  chat1:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.service
+      args:
+        SERVICE: chat
+    container_name: wetalk-chat1
+    volumes:
+      - ./docker/configs/ChatServer1/config.ini:/app/config.ini:ro
+    ports:
+      - "8090:8090"
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    networks:
+      wetalk:
+        ipv4_address: 172.20.0.41
+        aliases:
+          - chatserver1
+
+  chat2:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.service
+      args:
+        SERVICE: chat
+    container_name: wetalk-chat2
+    volumes:
+      - ./docker/configs/ChatServer2/config.ini:/app/config.ini:ro
+    ports:
+      - "8091:8091"
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    networks:
+      wetalk:
+        ipv4_address: 172.20.0.42
+        aliases:
+          - chatserver2
+
+  status:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.service
+      args:
+        SERVICE: status
+    container_name: wetalk-status
+    volumes:
+      - ./docker/configs/StatusServer/config.ini:/app/config.ini:ro
+    depends_on:
+      mysql:
+        condition: service_healthy
+      lars-agent:
+        condition: service_started
+    networks:
+      wetalk:
+        ipv4_address: 172.20.0.31
+
+  varify:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.varify
+    container_name: wetalk-varify
+    volumes:
+      - ./docker/configs/VarifyServer/config.json:/app/config.json:ro
+    depends_on:
+      redis:
+        condition: service_started
+    networks:
+      wetalk:
+        ipv4_address: 172.20.0.32
+
+  gate:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.service
+      args:
+        SERVICE: gate
+    container_name: wetalk-gate
+    volumes:
+      - ./docker/configs/GateServer/config.ini:/app/config.ini:ro
+    ports:
+      - "8080:8080"
+    depends_on:
+      mysql:
+        condition: service_healthy
+      status:
+        condition: service_started
+      varify:
+        condition: service_started
+      resource:
+        condition: service_started
+    networks:
+      wetalk:
+        ipv4_address: 172.20.0.30
+
+  resource:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.service
+      args:
+        SERVICE: resource
+    container_name: wetalk-resource
+    volumes:
+      - ./docker/configs/ResourceServer/config.ini:/app/config.ini:ro
+    ports:
+      - "9090:9090"
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    networks:
+      wetalk:
+        ipv4_address: 172.20.0.33
+
+  seed:
+    image: mysql:8.0
+    container_name: wetalk-seed
+    environment:
+      CHAT_ADV_IP1: ${CHAT_ADV_IP1}
+      CHAT_ADV_IP2: ${CHAT_ADV_IP2}
+    entrypoint: ["bash", "/seed/seed.sh"]
+    volumes:
+      - ./docker/seed/seed.sh:/seed/seed.sh:ro
+    depends_on:
+      mysql:
+        condition: service_healthy
+      lars-dns:
+        condition: service_started
+    networks:
+      wetalk:
+        ipv4_address: 172.20.0.50
+
+volumes:
+  mysql-data:

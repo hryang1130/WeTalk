@@ -1,0 +1,9 @@
+# VarifyServer 是原作者用 Node.js 实现的邮件验证码服务，独立于 C++ 构建体系
+FROM node:20-alpine
+WORKDIR /app
+COPY server/VarifyServer/package.json server/VarifyServer/package-lock.json ./
+RUN npm install --omit=dev
+COPY server/VarifyServer/ ./
+# config.json 由 docker-compose 只读卷挂载（容器版在 docker/configs/VarifyServer/）
+EXPOSE 50051
+CMD ["node", "server.js"]

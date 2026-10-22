@@ -1,0 +1,36 @@
+#pragma once
+// 对 Lars UDP API 的线程安全封装。
+// 上游 lars_client 非线程安全、agent 地址写死 127.0.0.1；此处统一改造并接入 ConfigMgr。
+#include <string>
+#include <memory>
+#include <mutex>
+
+class LarsClientImpl;
+
+class LarsClient
+{
+public:
+    static LarsClient& Instance();
+
+    // 从 ConfigMgr 的 [Lars] 段读取配置；Enable != true 时不启用（走静态配置兜底）
+    void InitFromConfig();
+    // 也可以手动初始化（测试用）
+    void Init(const std::string& agent_ip, short agent_udp_base_port, int modid, int cmdid);
+
+    bool enabled() const { return _enabled; }
+    int modid() const { return _modid; }
+    int cmdid() const { return _cmdid; }
+
+    // 从负载均衡 Agent 获取一个健康节点；失败返回 false
+    bool getHost(std::string& ip, int& port);
+    // 上报一次调用结果：retcode 0 = 成功
+    void report(const std::string& ip, int port, int retcode);
+
+private:
+    LarsClient() = default;
+    bool _enabled = false;
+    int _modid = 1;
+    int _cmdid = 1;
+    std::mutex _mtx;
+    std::unique_ptr<LarsClientImpl> _impl;
+};

@@ -1,0 +1,25 @@
+FROM ubuntu:22.04 AS builder
+ARG DEBIAN_FRONTEND=noninteractive
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential cmake pkg-config git ca-certificates \
+    libboost-all-dev libgrpc++-dev protobuf-compiler-grpc libprotobuf-dev \
+    libhiredis-dev libmysqlcppconn-dev libjsoncpp-dev && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /src
+COPY server/ ./server/
+COPY third_party/Lars/ ./third_party/Lars/
+
+RUN cmake -S server -B build -DCMAKE_BUILD_TYPE=Release && \
+    cmake --build build -j"$(nproc)" --target gate status chat resource
+
+FROM ubuntu:22.04
+ARG DEBIAN_FRONTEND=noninteractive
+ARG SERVICE
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    libboost-system1.74.0 libboost-date-time1.74.0 libboost-filesystem1.74.0 \
+    libboost-uuid1.74.0 libprotobuf23 libgrpc++1 libhiredis0.14 \
+    libmysqlcppconn8-2 libjsoncpp25 && rm -rf /var/lib/apt/lists/*
+COPY --from=builder /src/build/${SERVICE} /app/service
+# config.ini 由 docker-compose 以只读卷挂载（chat1/chat2 共用 chat 镜像、各自挂 ChatServer1/2 配置）
+WORKDIR /app
+CMD ["/app/service", "/app/config.ini"]
