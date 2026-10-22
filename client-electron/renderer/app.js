@@ -18,6 +18,8 @@ function showAuth() { $('view-auth').classList.remove('hidden'); $('view-main').
 function showMain() { $('view-auth').classList.add('hidden'); $('view-main').classList.remove('hidden'); }
 
 /* ---------------- 登录 / 注册 ---------------- */
+const gateUrl = () => $('gate-url').value.trim().replace(/\/+$/, '') || 'http://127.0.0.1:8080';
+
 $('tab-login').onclick = () => {
   $('tab-login').classList.add('active'); $('tab-register').classList.remove('active');
   $('form-login').classList.remove('hidden'); $('form-register').classList.add('hidden');
@@ -30,7 +32,7 @@ $('tab-register').onclick = () => {
 $('btn-varify').onclick = async () => {
   const email = $('reg-email').value.trim();
   if (!email) return msg('reg-msg', '请先填邮箱');
-  const r = await window.wetalk.httpPost('/get_varifycode', { email });
+  const r = await window.wetalk.httpPost('/get_varifycode', { email }, gateUrl());
   msg('reg-msg', r.error === 0 ? '验证码已发送，请查收邮箱' : `发送失败：${errText(r.error)}`, r.error === 0);
 };
 
@@ -45,7 +47,7 @@ $('form-register').onsubmit = async (e) => {
     icon: '1',
     varifycode: $('reg-varifycode').value.trim(),
   };
-  const r = await window.wetalk.httpPost('/user_register', body);
+  const r = await window.wetalk.httpPost('/user_register', body, gateUrl());
   if (r.error === 0) { msg('reg-msg', `注册成功，uid=${r.uid}，请切换到登录`, true); $('tab-login').click(); }
   else msg('reg-msg', `注册失败：${errText(r.error)}`);
 };
@@ -53,7 +55,7 @@ $('form-register').onsubmit = async (e) => {
 $('form-login').onsubmit = async (e) => {
   e.preventDefault();
   const email = $('login-email').value.trim();
-  const r = await window.wetalk.httpPost('/user_login', { email, passwd: $('login-passwd').value });
+  const r = await window.wetalk.httpPost('/user_login', { email, passwd: $('login-passwd').value }, gateUrl());
   if (r.error !== 0) return msg('login-msg', `登录失败：${errText(r.error)}`);
   // HTTP 登录返回：{uid, token, chathost, chatport, reshost, resport}
   try {

@@ -1,5 +1,7 @@
 # WeTalk — llfcchat 微服务 + Lars 负载均衡 服务治理整合
 
+> **部署启动流程见 [DEPLOY.md](DEPLOY.md)**（Linux 服务器部署 / 本机 Docker Desktop 两种形态 + 常见问题）。
+
 把 [llfcchat](https://github.com/secondtonone1/llfcchat)（C++ 微服务聊天系统，原作者恋恋风辰；作者 gitee 原仓库已不公开，gitee 同 commit 镜像：[tfn3147546/llfcchat](https://gitee.com/tfn3147546/llfcchat)，HEAD `4a01c4f`）和 [aceld/Lars](https://github.com/aceld/Lars)（UDP 负载均衡/服务治理框架）整合成一个 **可 Docker Compose 一键部署** 的项目，
 并让 StatusServer 通过 Lars 做真正的负载均衡，而不是读静态配置。
 

@@ -17,6 +17,7 @@
       </div>
 
       <form id="form-login" class="stack">
+        <input id="gate-url" placeholder="GateServer 地址（本地: http://127.0.0.1:8080）" value="http://127.0.0.1:8080" />
         <input id="login-email" placeholder="邮箱" autocomplete="username" />
         <input id="login-passwd" type="password" placeholder="密码" autocomplete="current-password" />
         <button type="submit" class="primary">登录</button>
@@ -36,7 +37,7 @@
         <button type="submit" class="primary">注册</button>
         <div id="reg-msg" class="msg"></div>
       </form>
-      <div class="hint">GateServer 默认 http://127.0.0.1:8080，可在登录前用 docker compose up 启动服务端</div>
+      <div class="hint">服务端默认 http://127.0.0.1:8080；若服务端部署在 Linux 服务器，把地址改为 http://服务器IP:8080（同时保证 .env 的 CHAT_ADV_IP 是客户端可达的 IP）</div>
     </div>
   </div>
 

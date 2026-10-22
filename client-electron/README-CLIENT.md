@@ -39,6 +39,11 @@ npm install        # 国内如下载慢: ELECTRON_MIRROR=https://npmmirror.com/m
 npm start
 ```
 
+> ⚠️ 如果 `npm start` 报 `ipcMain` undefined 或 `--version` 显示 Node 版本号：检查环境变量
+> `ELECTRON_RUN_AS_NODE`——从 Electron 应用（如 WorkBuddy/VSCode）内嵌终端启动会继承它，
+> 把 electron.exe 降级成纯 Node。清除后重试：`$env:ELECTRON_RUN_AS_NODE=$null`（PowerShell）
+> 或 `unset ELECTRON_RUN_AS_NODE`（bash）。
+
 前置条件：服务端已启动（`docker compose up -d --build`），GateServer 8080 可达。
 登录流程：注册（需 VarifyServer 邮箱验证码，需先在 `docker/configs/VarifyServer/config.json` 填 SMTP 授权码）
 → 登录 → TCP 认证 → 好友列表/单聊。
