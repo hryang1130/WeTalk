@@ -6,18 +6,22 @@ if (!window.wetalk) {
     '<p>请确认 main.js 中 webPreferences.sandbox = false，且 preload 路径正确。</p></div>';
   throw new Error('preload not injected');
 }
-const { MSG_IDS, ERROR_CODES } = window.wetalk;
+const { MSG_IDS, RES_IDS, ERROR_CODES } = window.wetalk;
 
 const $ = (id) => document.getElementById(id);
 const errText = (r) => (r && r.detail) ? r.detail : (ERROR_CODES[r && r.error] || `错误码 ${r && r.error}`);
+const isImgName = (s) => /\.(png|jpe?g|gif|bmp|webp)$/i.test(String(s || ''));
 
 const state = {
-  self: null,          // {uid, name, nick, icon, email, token}
+  self: null,          // {uid, name, nick, icon, email, token, reshost, resport}
   friends: [],         // [{uid, name, nick, back...}]
   applies: [],         // 好友申请
   threads: {},         // uid -> thread_id（0=未创建，由服务端 1018 RSP 回填）
-  chats: {},           // uid -> [{mine, content, time, status, unique_id, pending}]
+  chats: {},           // uid -> [{type:'text'|'img', mine, content, time, unique_id, pending, dataUrl}]
   active: null,        // 当前聊天对象 uid
+  history: {},         // uid -> {last_message_id, load_more, loaded}
+  loadingHistory: false,
+  imgCache: {},        // 图片名 -> dataURL
 };
 
 /* ---------------- 视图切换 ---------------- */
@@ -69,7 +73,7 @@ $('form-login').onsubmit = async (e) => {
     if (r.error !== 0) return msg('login-msg', `登录失败：${errText(r)}`);
     // HTTP 登录返回：{uid, token, chathost, chatport, reshost, resport}
     await window.wetalk.tcpConnect({ host: r.chathost, port: Number(r.chatport), uid: r.uid, token: r.token });
-    state.self = { uid: r.uid, email, token: r.token };
+    state.self = { uid: r.uid, email, token: r.token, reshost: r.reshost, resport: r.resport };
     msg('login-msg', '已连接聊天服务器，认证中…', true);
   } catch (err) {
     msg('login-msg', '登录异常：' + err.message);
@@ -88,6 +92,8 @@ window.wetalk.onFrame(({ msgid, obj }) => {
     case MSG_IDS.ID_ADD_FRIEND_RSP: onAddFriendRsp(obj); break;
     case MSG_IDS.ID_NOTIFY_ADD_FRIEND_REQ: onNotifyApply(obj); break;
     case MSG_IDS.ID_NOTIFY_AUTH_FRIEND_REQ: onNotifyAuth(obj); break;
+    case MSG_IDS.ID_LOAD_CHAT_MSG_RSP: onHistoryRsp(obj); break;
+    case MSG_IDS.ID_IMG_CHAT_MSG_RSP: onImgRsp(obj); break;
     case MSG_IDS.ID_HEARTBEAT_RSP: break; // 心跳回包忽略
     default: console.log('unhandled msgid', msgid, obj);
   }
@@ -174,19 +180,82 @@ function openChat(uid, name) {
   if (state.threads[uid] === undefined) state.threads[uid] = 0;
   $('chat-title').textContent = `${name}  #${uid}`;
   $('btn-send').disabled = false;
+  $('btn-img').disabled = false;
   renderFriends(); renderMsgs();
+  loadHistory(uid);
 }
 
-function renderMsgs() {
-  const box = $('msg-list'); box.innerHTML = '';
+/* ---------------- 历史消息（1029，游标分页） ---------------- */
+function loadHistory(uid) {
+  const tid = state.threads[uid] || 0;
+  if (!tid) return;                       // thread 未创建，无历史可拉
+  const h = state.history[uid] || { last_message_id: 0, load_more: true, loaded: false };
+  if (!h.load_more || state.loadingHistory) return;
+  state.loadingHistory = true;
+  window.wetalk.tcpSend(MSG_IDS.ID_LOAD_CHAT_MSG_REQ, { thread_id: tid, message_id: h.last_message_id });
+}
+
+function onHistoryRsp(obj) { // {error, thread_id, last_message_id, load_more, chat_datas:[{sender,msg_content,chat_time,unique_id,status}]}
+  state.loadingHistory = false;
+  // 找到该 thread 对应的会话（thread_id ↔ uid 双射由本地 threads 表维护）
+  const uid = Object.keys(state.threads).find((u) => state.threads[u] === obj.thread_id);
+  if (!uid || obj.error !== 0) return;
+  const uidNum = Number(uid);
+  const h = state.history[uidNum] || (state.history[uidNum] = {});
+  const arr = state.chats[uidNum];
+  const older = (obj.chat_datas || []).map((c) => ({
+    type: isImgName(c.msg_content) ? 'img' : 'text',
+    mine: c.sender === state.self.uid,
+    content: c.msg_content,
+    time: fmtTime(c.chat_time),
+    unique_id: String(c.unique_id || ''),
+  })).reverse(); // 服务端按时间倒序返回（游标向前翻页），反转成时间正序
+  arr.unshift(...older);
+  h.last_message_id = obj.last_message_id;
+  h.load_more = !!obj.load_more;
+  h.loaded = true;
+  if (state.active === uidNum) renderMsgs(true);
+  // 历史里的图片懒加载
+  for (const m of older) if (m.type === 'img' && !state.imgCache[m.content]) fetchImage(m.content);
+}
+
+function onImgRsp(obj) { // 1036 图片消息回执：thread_id 回填 + 去 pending
+  if (obj.touid && state.threads[obj.touid] !== undefined) state.threads[obj.touid] = obj.thread_id;
+  const arr = state.chats[obj.touid] || [];
+  for (const m of arr) if (m.unique_id === obj.unique_id) m.pending = false;
+  if (state.active === obj.touid) renderMsgs();
+}
+
+function renderMsgs(keepScrollTop) {
+  const box = $('msg-list');
+  const prevHeight = box.scrollHeight;
+  box.innerHTML = '';
   for (const m of state.chats[state.active] || []) {
     const div = document.createElement('div');
     div.className = 'bubble ' + (m.mine ? 'mine' : 'theirs') + (m.pending ? ' pending' : '');
-    div.dataset.unique = m.unique_id || '';
-    div.innerHTML = `${escapeHtml(m.content)}<span class="meta">${m.time}${m.pending ? ' · 发送中' : ''}</span>`;
+    if (m.unique_id) div.dataset.unique = m.unique_id;
+    if (m.type === 'img') {
+      const img = document.createElement('img');
+      const url = m.dataUrl || state.imgCache[m.content];
+      if (url) { img.src = url; }
+      else { img.className = 'loading'; img.alt = m.content; fetchImage(m.content); }
+      div.appendChild(img);
+      const meta = document.createElement('span');
+      meta.className = 'meta';
+      meta.textContent = `${m.content} ${m.time || ''}`;
+      div.appendChild(meta);
+    } else {
+      div.innerHTML = `${escapeHtml(m.content)}<span class="meta">${m.time}${m.pending ? ' · 发送中' : ''}</span>`;
+    }
     box.appendChild(div);
   }
-  box.scrollTop = box.scrollHeight;
+  if (keepScrollTop) box.scrollTop = box.scrollHeight - prevHeight; // 翻页保持视口
+  else box.scrollTop = box.scrollHeight;
+  // 有更多历史时，滚到顶部触发加载
+  const h = state.history[state.active];
+  if (h && h.load_more) {
+    box.onscroll = () => { if (box.scrollTop === 0) loadHistory(state.active); };
+  } else box.onscroll = null;
 }
 
 function nowStr() { return new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' }); }
@@ -207,6 +276,62 @@ function sendText() {
 }
 $('btn-send').onclick = sendText;
 $('input-box').addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendText(); } });
+
+/* ---------------- 图片消息（ResourceServer 上传 + ChatServer 1035 落库） ---------------- */
+async function ensureRes() {
+  const { reshost, resport } = state.self;
+  await window.wetalk.resConnect(reshost, Number(resport) || 9090);
+}
+
+$('btn-img').onclick = () => $('img-input').click();
+$('img-input').addEventListener('change', async (e) => {
+  const file = e.target.files[0];
+  e.target.value = '';
+  if (!file || !state.active) return;
+  try {
+    if (!state.imgCache._connected) { await ensureRes(); state.imgCache._connected = true; }
+    const buf = new Uint8Array(await file.arrayBuffer());
+    const md5hex = await window.wetalk.md5Hex(buf);
+    const name = md5hex + (file.name.match(/\.\w+$/)?.[0] || '.png').toLowerCase();
+    // 1) 分片上传到 ResourceServer（1037 图片上传）
+    await window.wetalk.resUpload(state.self.uid, RES_IDS.ID_IMG_CHAT_UPLOAD_REQ, name, bytesToB64(buf));
+    // 2) ChatServer 1035 落库通知（对方经历史消息拉取）
+    const uid = state.active;
+    const unique_id = crypto.randomUUID();
+    state.threads[uid] = state.threads[uid] || 0;
+    state.chats[uid].push({ type: 'img', mine: true, content: name, time: nowStr(), unique_id, pending: true, dataUrl: URL.createObjectURL(new Blob([buf])) });
+    renderMsgs();
+    window.wetalk.tcpSend(MSG_IDS.ID_IMG_CHAT_MSG_REQ, {
+      fromuid: state.self.uid, touid: uid, thread_id: state.threads[uid],
+      md5: md5hex, name, token: state.self.token,
+      unique_id, chat_time: String(Math.floor(Date.now() / 1000)), status: 3,
+    });
+  } catch (err) {
+    alert('图片发送失败：' + err.message);
+  }
+});
+
+function bytesToB64(bytes) {
+  let bin = '';
+  const CH = 0x8000;
+  for (let i = 0; i < bytes.length; i += CH) bin += String.fromCharCode.apply(null, bytes.subarray(i, i + CH));
+  return btoa(bin);
+}
+
+async function fetchImage(name) { // 从 ResourceServer 下载图片并缓存
+  if (state.imgCache[name] || !state.self) return;
+  state.imgCache[name] = 'loading';
+  try {
+    if (!state.imgCache._connected) { await ensureRes(); state.imgCache._connected = true; }
+    const r = await window.wetalk.resDownload(state.self.uid, state.self.token, name);
+    const blob = new Blob([Uint8Array.from(atob(r.dataB64), (c) => c.charCodeAt(0))]);
+    state.imgCache[name] = URL.createObjectURL(blob);
+    if (state.active !== null) renderMsgs();
+  } catch (err) {
+    console.warn('fetch image failed:', name, err.message);
+    delete state.imgCache[name];
+  }
+}
 
 function onTextRsp(obj) { // 1018 我发的消息的回执：更新 pending 气泡 + 回填 thread_id
   if (obj.touid && state.threads[obj.touid] !== undefined) state.threads[obj.touid] = obj.thread_id;

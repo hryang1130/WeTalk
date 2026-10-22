@@ -4,12 +4,14 @@ const { app, BrowserWindow, ipcMain } = require('electron');
 const path = require('path');
 const net = require('net');
 const { encodeFrame, decodeFrames, MSG_IDS } = require('./core/protocol');
+const { ResClient } = require('./core/resClient');
 
 let win = null;
-let tcp = null;            // net.Socket
+let tcp = null;            // net.Socket (ChatServer)
 let rxState = null;        // 拆包状态机
 let heartbeatTimer = null;
 let session = null;        // {uid, token, chathost, chatport}
+let res = new ResClient((m) => console.log('[res]', m));  // ResourceServer 数据面连接
 
 function createWindow() {
   win = new BrowserWindow({
@@ -108,6 +110,16 @@ ipcMain.handle('tcp:send', (_e, { msgid, data }) => {
 
 ipcMain.handle('tcp:close', () => { teardownTcp('logout'); return true; });
 ipcMain.handle('session:get', () => session);
+
+/* ---------- ResourceServer 数据面 ---------- */
+ipcMain.handle('res:connect', (_e, { host, port }) => res.connect(host, port));
+// dataB64: 文件内容 base64（renderer 读 File 后转码传过来）
+ipcMain.handle('res:upload', (_e, { uid, msgid, name, dataB64 }) =>
+  res.upload(uid, msgid, name, Buffer.from(dataB64, 'base64')));
+ipcMain.handle('res:download', async (_e, { uid, token, name }) => {
+  const r = await res.download(uid, token, name);
+  return { name: r.name, dataB64: r.buffer.toString('base64') };
+});
 
 app.whenReady().then(createWindow);
 app.on('window-all-closed', () => { teardownTcp('app-quit'); app.quit(); });

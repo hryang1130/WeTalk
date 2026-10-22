@@ -77,7 +77,11 @@ getHost 在 chatserver1/chatserver2 之间轮换；`docker compose logs lars-age
 
 ## 方案 B：全部跑在本机 Windows（需先装 Docker Desktop）
 
-1. 安装 [Docker Desktop for Windows](https://www.docker.com/products/docker-desktop/)（需 WSL2 后端，安装器会引导）。
+1. **安装 Docker Desktop**（一次性，约 10 分钟）：
+   - 下载 [Docker Desktop for Windows](https://www.docker.com/products/docker-desktop/)，安装时勾选 **WSL 2 backend**（安装器会引导启用 WSL2，可能要求重启）；
+   - 启动 Docker Desktop，等右下角图标变绿；
+   - 验证：PowerShell 里 `docker --version`、`docker compose version` 都有输出即可。
+   - **不需要手动拉 Ubuntu 镜像或手动编译**：`docker-compose.yml` 已定义好 ubuntu:22.04 构建环境，`--build` 时自动完成所有 C++ 编译。
 2. 其余步骤与方案 A 完全相同，只是：
    - `.env` 的 CHAT_ADV_IP1/2 填 `127.0.0.1`（或本机局域网 IP，供局域网内其他设备连）
    - 客户端 GateServer 地址保持 `http://127.0.0.1:8080`

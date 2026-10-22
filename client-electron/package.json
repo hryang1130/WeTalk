@@ -4,9 +4,32 @@
   "description": "WeTalk desktop client (Electron + Node.js) for llfcchat+Lars integrated server",
   "main": "main.js",
   "scripts": {
-    "start": "electron ."
+    "start": "electron .",
+    "mock": "node mock-server.js",
+    "dist": "electron-builder --win nsis"
+  },
+  "build": {
+    "appId": "com.wetalk.client",
+    "productName": "WeTalk",
+    "directories": { "output": "dist" },
+    "files": [
+      "main.js",
+      "preload.js",
+      "core/**",
+      "renderer/**"
+    ],
+    "win": {
+      "target": ["nsis"],
+      "artifactName": "WeTalk-Setup-${version}.${ext}"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true
+    }
   },
   "devDependencies": {
-    "electron": "^31.0.0"
+    "electron": "^31.0.0",
+    "electron-builder": "^24.13.3"
   }
 }

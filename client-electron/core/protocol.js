@@ -28,6 +28,18 @@ const MSG_IDS = {
   ID_IMG_CHAT_MSG_REQ: 1035,
 };
 
+// ResourceServer 编号空间（server/ResourceServer/const.h，与 ChatServer 数值不冲突）
+const RES_IDS = {
+  ID_UPLOAD_FILE_REQ: 1003,   // 一般文件分片上传
+  ID_UPLOAD_FILE_RSP: 1004,
+  ID_SYNC_FILE_REQ: 1005,     // 文件信息同步（存在性/断点查询）
+  ID_SYNC_FILE_RSP: 1006,
+  ID_DOWN_LOAD_FILE_REQ: 1033,// 分片下载（首片校验 uid+token）
+  ID_DOWN_LOAD_FILE_RSP: 1034,
+  ID_IMG_CHAT_UPLOAD_REQ: 1037, // 聊天图片分片上传
+  ID_IMG_CHAT_UPLOAD_RSP: 1038,
+};
+
 // server/GateServer/const.h ErrorCodes（响应 error 字段）
 const ERROR_CODES = {
   0: '成功',
@@ -79,4 +91,4 @@ function decodeFrames(state, chunk, onError) {
   return frames;
 }
 
-module.exports = { HEAD_TOTAL_LEN, MSG_IDS, ERROR_CODES, encodeFrame, decodeFrames };
+module.exports = { HEAD_TOTAL_LEN, MSG_IDS, RES_IDS, ERROR_CODES, encodeFrame, decodeFrames };

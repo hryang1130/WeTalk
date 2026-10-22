@@ -49,6 +49,8 @@ input:focus, textarea:focus { border-color: var(--brand); }
 .bubble.theirs { align-self: flex-start; background: #fff; border: 1px solid var(--line); border-bottom-left-radius: 2px; }
 .bubble .meta { display: block; font-size: 10px; opacity: .65; margin-top: 3px; }
 .bubble.pending { opacity: .55; }
+.bubble img { max-width: 260px; max-height: 200px; display: block; border-radius: 6px; }
+.bubble img.loading { min-width: 120px; min-height: 60px; background: rgba(0,0,0,.08); }
 .system { align-self: center; font-size: 11px; color: var(--muted); }
 .composer { display: flex; gap: 10px; padding: 12px 16px; background: var(--card); border-top: 1px solid var(--line); align-items: flex-end; }
 .composer textarea { resize: none; }

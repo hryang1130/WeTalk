@@ -25,11 +25,27 @@ gRPC 只存在于服务间调用（Gate↔Status↔Chat），客户端完全不�
 
 ```
 client-electron/
-├── main.js            # 主进程：net.Socket 长连接 + 拆包状态机 + 心跳(30s) + IPC
-├── preload.js         # contextBridge 桥接（安全模式，renderer 不开 nodeIntegration）
-├── core/protocol.js   # 线协议：帧编解码 + MSG_IDS 常量（与 C++ const.h 对齐）
-└── renderer/          # 登录/注册 + 好友列表 + 单聊 UI
+├── main.js            # 主进程：ChatServer 长连接 + ResourceServer 数据面 + IPC
+├── preload.js         # contextBridge 桥接（sandbox:false，renderer 不开 nodeIntegration）
+├── core/protocol.js   # ChatServer 线协议 + ResourceServer 协议号（与 C++ const.h 对齐）
+├── core/resClient.js  # ResourceServer 分片上传(1037/1003)/下载(1033)客户端，data=base64，片≤32KB
+├── core/md5.js        # 纯 JS MD5（Web Crypto 无 MD5；服务端用内容 md5 做断点续传 key）
+├── renderer/          # 登录/注册 + 好友列表 + 单聊 + 历史消息 + 图片收发 UI
+└── mock-server.js     # 本地演示服务（8080/8090/9090），无需 Docker 即可体验全部 UI 功能
 ```
+
+## 功能清单
+
+- ✅ 注册（邮箱验证码）、登录、TCP 认证、心跳
+- ✅ 好友列表、好友申请/同意、搜索加好友
+- ✅ 文本单聊（1017/1018 回执/1019 在线推送）
+- ✅ 历史消息（1029 游标分页，滚到顶部加载更多；图片消息显示为缩略图）
+- ✅ 图片收发（📷 按钮 → ResourceServer 1037 分片上传 → ChatServer 1035 落库 → 接收方经 1033 分片下载渲染）
+- ⬜ 一般文件传输（1041 双向确认流程）、离线通知(1021)、群聊
+- ✅ 打包：`npm run dist` → `dist/WeTalk-Setup-0.1.0.exe`（NSIS 安装器）
+
+> 演示模式：`npm run mock` 启动假服务端（8080/8090/9090），客户端连 127.0.0.1 即可体验以上全部交互；
+> 真实服务端按 `../DEPLOY.md` 部署后，登录页把 Gate 地址改成服务器地址即可，客户端代码不用改。
 
 ## 运行
 
