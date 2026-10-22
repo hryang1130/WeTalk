@@ -16,3 +16,4 @@ docker/configs/VarifyServer/config.json.bak
 # 系统杂项
 *.log
 .DS_Store
+_*.txt

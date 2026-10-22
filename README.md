@@ -53,6 +53,7 @@ wetalk/
 │   ├── mysql/init/        # lars_dns 库(含路由表) + llfc 业务库
 │   └── seed/seed.sh       # 启动后把 ChatServer 节点写进 RouteData
 ├── docker-compose.yml
+├── client-electron/      # Electron 桌面客户端（不依赖 Qt，HTTP + TCP 帧协议直连服务端，见其 README-CLIENT.md）
 └── .env.example
 ```
 
