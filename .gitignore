@@ -3,30 +3,27 @@ server/**/build/
 build/
 */x64/
 .vs/
+.vscode/
 
 # Node.js
 node_modules/
 client-web/node_modules/
+
+# Electron 打包产物（安装包 300MB+，不进仓库；需要时 npm run dist 生成）
+client-electron/dist/
+client-electron/__ui/
 
 # 环境与凭据
 .env
 *cookies*.txt
 docker/data/
 client-electron/.profile-*/
-client-electron/__ui/
 docker/configs/VarifyServer/config.json.bak
 
-# 系统杂项
+# 大文件 / 系统杂项
+_DockerDesktopInstaller.exe
+_*.log
+_*.txt
+client-electron/_*.txt
 *.log
 .DS_Store
-_*.txt
-_DockerDesktopInstaller.exe
-_repro.sh
-_*.log
-_*.txt
-client-electron/_*.txt
-_DockerDesktopInstaller.exe
-_repro.sh
-_*.log
-_*.txt
-client-electron/_*.txt
