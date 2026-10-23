@@ -48,8 +48,8 @@ add_library(lars_api STATIC common/lars/lars_api.cpp)
 target_include_directories(lars_api PUBLIC common/lars ${CMAKE_CURRENT_BINARY_DIR})
 target_link_libraries(lars_api PUBLIC lars_reactor lars_proto)
 
-# ---------- WeTalk 公共组件（LarsClient 线程安全封装） ----------
-add_library(wetalk_common STATIC common/LarsClient.cpp)
+# ---------- WeTalk 公共组件（WetalkRouteClient：Lars 路由的线程安全封装） ----------
+add_library(wetalk_common STATIC common/WetalkRouteClient.cpp)
 target_include_directories(wetalk_common PUBLIC common)
 target_link_libraries(wetalk_common PUBLIC lars_api)
 

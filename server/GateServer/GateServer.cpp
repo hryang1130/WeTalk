@@ -104,11 +104,11 @@ void TestRedis() {
 }
 
 void TestRedisMgr() {
-	assert(RedisMgr::GetInstance()->Set("blogwebsite","llfc.club"));
+	assert(RedisMgr::GetInstance()->Set("blogwebsite","wetalk.im"));
 	std::string value="";
 	assert(RedisMgr::GetInstance()->Get("blogwebsite", value) );
 	assert(RedisMgr::GetInstance()->Get("nonekey", value) == false);
-	assert(RedisMgr::GetInstance()->HSet("bloginfo","blogwebsite", "llfc.club"));
+	assert(RedisMgr::GetInstance()->HSet("bloginfo","blogwebsite", "wetalk.im"));
 	assert(RedisMgr::GetInstance()->HGet("bloginfo","blogwebsite") != "");
 	assert(RedisMgr::GetInstance()->ExistsKey("bloginfo"));
 	assert(RedisMgr::GetInstance()->Del("bloginfo"));

@@ -1,183 +1,195 @@
-# WeTalk — llfcchat 微服务 + Lars 负载均衡 服务治理整合
+# WeTalk — C++ IM Microservices with Service Governance, One-Command Deploy
 
-> **部署启动流程见 [DEPLOY.md](DEPLOY.md)**（Linux 服务器部署 / 本机 Docker Desktop 两种形态 + 常见问题）。
+**English** | [简体中文](README.zh-CN.md)
 
-把 [llfcchat](https://github.com/secondtonone1/llfcchat)（C++ 微服务聊天系统，原作者恋恋风辰；作者 gitee 原仓库已不公开，gitee 同 commit 镜像：[tfn3147546/llfcchat](https://gitee.com/tfn3147546/llfcchat)，HEAD `4a01c4f`）和 [aceld/Lars](https://github.com/aceld/Lars)（UDP 负载均衡/服务治理框架）整合成一个 **可 Docker Compose 一键部署** 的项目，
-并让 StatusServer 通过 Lars 做真正的负载均衡，而不是读静态配置。
+> WeTalk is a C++ microservice instant-messaging system: an access gateway, chat servers, a file service and a verification-code service, plus UDP-based service governance (load balancing / failure eviction / hot route updates) — all containerized, brought up with a single `docker compose up -d --build`.
+>
+> **Deployment guide: [DEPLOY.md](DEPLOY.md)** (Linux server / local Docker Desktop, plus FAQ).
 
-桌面客户端已从 Qt 迁移为 **Electron**（`client-electron/`，功能清单与协议见 [client-electron/README-CLIENT.md](client-electron/README-CLIENT.md)）。
+> The project evolved from an integration of [llfcchat](https://github.com/secondtonone1/llfcchat) (a C++ microservice chat system by 恋恋风辰) and [aceld/Lars](https://github.com/aceld/Lars) (a UDP load-balancing / service-governance framework), with substantial original work on top: StatusServer now performs real load balancing through the governance framework instead of reading a static list, and the project adds a file service, read receipts, friend removal, offline messaging and more. Credits to the original authors.
 
-## 快速开始（5 步）
+The desktop client is **Electron** (`client-electron/`, feature list & protocol map in [client-electron/README-CLIENT.md](client-electron/README-CLIENT.md)).
+
+## Quick Start (5 steps)
 
 ```bash
-# 1. 配置环境
-cp .env.example .env                  # CHAT_ADV_IP1/2 填 127.0.0.1（本机联调）
-# 2. （可选）注册要收验证码：docker/configs/VarifyServer/config.json 填 163 SMTP 授权码
-# 3. 构建并启动全部 12 个容器
+# 1. Configure environment
+cp .env.example .env                  # set CHAT_ADV_IP1/2 to 127.0.0.1 for local development
+# 2. (Optional) registration emails: put your 163 SMTP auth code into
+#    docker/configs/VarifyServer/config.json
+# 3. Build & start all 12 containers
 docker compose up -d --build
-# 4. 等待就绪（约 1 分钟）
-docker ps                             # 全部 Up，wetalk-mysql 显示 (healthy)
-# 5. 启动客户端
+# 4. Wait until ready (~1 min)
+docker ps                             # all Up, wetalk-mysql shows (healthy)
+# 5. Start the desktop client
 cd client-electron && npm install && npm start
 ```
 
-**内置测试账号**（已写进 MySQL 种子，互为好友，可直接双开客户端互聊）：
+**Built-in test accounts** (seeded into MySQL, already friends with each other):
 
-| 邮箱 | 密码 | uid | 备注 |
+| Email | Password | uid | Note |
 | --- | --- | --- | --- |
-| `hao@wetalk.com` | `123456` | 1001 | 与 xm 互为好友 |
-| `xm@wetalk.com` | `123456` | 1099 | 昵称 XiaoMing |
-| `llfc@163.com` 等种子用户 | 见 `docker/mysql/init/02-llfc.sql` | — | 原版项目自带数据 |
+| `hao@wetalk.com` | `123456` | 1059 | friends with xm |
+| `xm@wetalk.com` | `123456` | 1099 | nickname XiaoMing |
+| `llfc@163.com` and other seeds | see `docker/mysql/init/02-wetalk.sql` | — | seeded from the original project |
 
-> 注册新账号需要 SMTP 授权码；没有的话按上面方式直接用测试账号，或往 MySQL `user` 表插数据。
+> Registering new accounts requires the SMTP auth code; without it, use the test accounts above or insert rows into the MySQL `user` table directly.
 
-**功能一览**（客户端）：注册/登录/心跳 · 好友申请与同意 · 文本单聊（送达/在线推送）· 表情面板 ·
-图片收发（分片上传下载）· **文件收发**（任意格式，保留原始文件名/大小，下载弹系统另存为）·
-历史消息游标分页 · **已读回执**（跨机 gRPC 实时通知）· **删除好友**（双向+实时通知）·
-**个人资料设置**（昵称/签名）· **断线自动重连**（指数退避，恢复后补拉历史/未读，不踢回登录页）·
-服务器地址记忆。服务端还提供：Lars 负载均衡调度（8090/8091 轮换+故障剔除）、
-ChatServer 间 gRPC 同类通知（消息/已读/删好友跨机转发）、消息持久化（`llfc.chat_message`，断线重连后历史不丢）。
+**Feature list** (client): register / login / heartbeat · friend requests & approval · 1:1 text chat (delivery + online push) · emoji panel ·
+image messages (chunked upload/download) · **file transfer** (any format, original filename & size preserved, downloads via native save dialog) ·
+cursor-paginated history · **read receipts** (cross-server real-time gRPC notify) · **friend removal** (bidirectional + real-time notify) ·
+**profile editing** (nickname / signature) · **auto-reconnect** (exponential backoff; history & unread re-synced on recovery, never kicked to the login page) ·
+server address memory. On the server side: governance-based load balancing (8090/8091 rotation + failure eviction),
+cross-server gRPC peer notifications (messages / receipts / friend removal), message persistence (`wetalk.chat_message` — history survives reconnects).
 
-**验证服务端链路**（不启动客户端也能跑）：
+**Verify the server pipeline** (no client needed):
 
 ```bash
 cd client-electron
-node test-e2e.js        # 登录→认证→表情文本→图片上传→落库→历史→下载比对→已读上报，输出 ALL PASS
-node test-file.js       # 文件消息：1003 上传 → 1035(带文件名/大小) → 历史 → 下载 md5 比对
-node test-offline.js    # 离线消息：B 离线时 A 发消息 → B 登录收 unread_list + 历史含该消息
-node test-profile.js    # /user_profile 端点联调
+node test-e2e.js        # login → auth → text → image upload → persistence → history → download diff → read report, prints ALL PASS
+node test-file.js       # file messages: 1003 upload → 1035 (with filename/size) → history → download md5 diff
+node test-offline.js    # offline messaging: A sends while B is offline → B logs in, gets unread_list + the message in history
+node test-profile.js    # /user_profile endpoint
 ```
 
-## 架构
+## Architecture
 
-![WeTalk 架构总览](docs/architecture.svg)
+![WeTalk architecture](docs/architecture.svg)
 
-> 图源：`docs/architecture.svg`（可直接改 SVG 里的坐标微调；`client-electron/tools/svgshot.js` 可离屏渲染成 PNG 预览）。
+> Source: `docs/architecture.svg` (edit the SVG directly; `client-electron/tools/svgshot.js` renders it offscreen to PNG for preview).
 
-**一条主链路**：客户端 HTTP 登录 Gate（①）→ Gate 用 gRPC 问 Status 要聊天节点（②）→ Status 经 **Lars**
-（lars-agent `get_route`，健康度由 lars-reporter 统计、路由表存在 MySQL `lars_dns.RouteData`）选出健康节点并回传 →
-客户端 **TCP 直连**该 ChatServer（③），此后消息/已读/心跳都走这条长连接；图片与文件不占消息通道，走独立的
-**ResourceServer 数据面**（④，分片上传 + 分片下载）。
+**The main path**: the client logs in over HTTP at the Gate (①) → the Gate asks Status for a chat node via gRPC (②) →
+Status picks a healthy node through the governance framework (agent `get_route`; health tracked by the reporter; the route
+table lives in MySQL `lars_dns.RouteData`) → the client opens a **direct TCP connection** to that ChatServer (③), and all
+messages / receipts / heartbeats flow over that long connection. Images and files bypass the message channel entirely via
+the dedicated **ResourceServer data plane** (④, chunked upload + chunked download).
 
-**关键设计取舍**：
+**Key design decisions**:
 
-- **控制面与数据面分离**：Gate 只做 HTTP 无状态接入，聊天连接由 ChatServer 直接持有，文件流量由 ResourceServer 承担，互不拖累。
-- **水平扩展靠 Lars 而不是静态配置**：StatusServer 每次调度都上报调用结果，Agent 在滑动窗口里统计失败率/过载，
-  坏的节点自然被排除；路由表支持版本化热更新（RouteChange），加节点不用改代码。
-- **跨机一致性靠 gRPC peer 通知**：两个 ChatServer 之间用 gRPC 转发文本/图片/已读/删好友通知，保证用户在任意节点都实时收到。
-- **离线消息靠 MySQL 兜底**：消息先落 `chat_message`（`status=0` 未读），登录时下发 `unread_list`，重连/重登都不丢。
+- **Control plane / data plane separation**: the Gate is a stateless HTTP front; chat connections are held directly by
+  ChatServers; file traffic goes to ResourceServer. None of them drag each other down.
+- **Horizontal scaling via governance, not static config**: StatusServer reports every scheduling result; the agent tracks
+  failure rates / overload in a sliding window, so bad nodes are evicted naturally. The route table supports versioned hot
+  updates (RouteChange) — adding a node requires no code change.
+- **Cross-server consistency via gRPC peer notification**: the two ChatServers forward text / image / read-receipt /
+  friend-removal notifications over gRPC so users receive events in real time regardless of which node they are on.
+- **Offline messaging backed by MySQL**: messages land in `chat_message` (`status=0` unread); the login response carries
+  `unread_list`, so nothing is lost across reconnects or re-logins.
 
-### 关键整合点（相对原版 llfcchat 的改动）
+### Key integration changes (vs. the original llfcchat)
 
-| 位置 | 原版 | 整合后 |
+| Area | Original | Integrated |
 | --- | --- | --- |
-| `StatusServiceImpl::getChatServer()` | 读 config.ini 静态列表，返回第一个 | 优先走 `LarsClient::getHost()`（Agent 按失败率/过载窗口返回健康节点），失败才回退静态配置 |
-| 调用结果反馈 | 无 | StatusServer 每次调度成功后 `LarsClient::report()` 上报，Agent 滚动窗口统计节点健康度 |
-| 节点注册 | 写死在 config.ini | 路由写在 MySQL `lars_dns.RouteData`（modid=1, cmdid=1），支持 RouteChange 版本化热更新 |
-| 构建 | Windows VS 工程只能本机跑 | 新增 Linux CMake 构建 + 每服务一个 Docker 镜像，compose 一键起 |
-| Lars API | agent 地址写死 127.0.0.1 | `server/common/lars/lars_api.cpp` 改为构造参数传入（容器间互访必需） |
+| `StatusServiceImpl::getChatServer()` | reads a static list from config.ini, returns the first | prefers `WetalkRouteClient::getHost()` (agent returns healthy nodes by failure/overload window), falls back to static config |
+| Call-result feedback | none | StatusServer reports every successful scheduling via `WetalkRouteClient::report()`; the agent tracks node health in a sliding window |
+| Node registration | hard-coded in config.ini | routes live in MySQL `lars_dns.RouteData` (modid=1, cmdid=1), with versioned hot updates (RouteChange) |
+| Build | Windows VS project, local machine only | Linux CMake build + one Docker image per service, `compose up` in one command |
+| Governance API | agent address hard-coded 127.0.0.1 | `server/common/lars/lars_api.cpp` now takes addresses via constructor parameters (required for container networking) |
 
-### 基于原版的自行开发内容（本仓库 server/ 相对 GitHub 原版 llfcchat 的 diff）
+### Original work in this repo (diff of `server/` vs. upstream llfcchat)
 
-> 已用脚本逐文件比对（2026-10-22，原版 commit `4a01c4f`）。以下改动是本地版本独有的，面试可指认源码：
+> Verified file-by-file with a diff script (2026-10-22, upstream commit `4a01c4f`). These changes are unique to this repo:
 
-| 类别 | 位置 | 内容 |
+| Area | Location | Content |
 | --- | --- | --- |
-| 图片消息 | `ChatServer/const.h`、`LogicSystem.*` | 新增协议 `ID_IMG_CHAT_MSG_REQ/RSP/NOTIFY`(1035/1036/1039) 与 `DealChatImgMsg` 处理流程（md5 去重、unique_id、token 校验） |
-| 消息可靠性 | `ChatServer/const.h`、`MysqlDao.*`、`MysqlMgr.*` | 新增 `AddChatMsg` 聊天记录落库 + `MsgStatus` 状态机（UN_READ / SEND_FAILED / READED / UN_UPLOAD），支撑离线消息与已读回执 |
-| 并发修复 | `ChatServer/MysqlDao.cpp` | 好友关系插入按 uid 大小固定顺序（self_id 取较小 uid），消除并发互加好友时的死锁/唯一键冲突 |
-| 登出安全 | `ChatServer/CSession.cpp` | 登出时删除 Redis 中 `USERTOKENPREFIX+uid` 的 token |
-| Redis 能力 | `StatusServer/RedisMgr.*` | 新增 `SetWithExpire`（SETEX 原子写值+过期），供验证码/token 使用 |
-| 文件服务 | `ResourceServer/`（48 个文件，原版无此服务） | 自建文件资源服务器：FileInfo/FileSystem/FileWorker/LogicWorker、Redis `DistLock` 分布式锁、文件信息同步协议 `ID_FILE_INFO_SYNC_REQ/RSP`(1041/1042)，GateServer 登录响应下发 `reshost/resport` |
-| 社交扩展协议 | `ChatServer/const.h`、`LogicSystem.*`、`MysqlDao.*`、`ChatGrpcClient.*`、`ChatServiceImpl.*`、`message.proto` | 2026-10-23 新增：删除好友 `1043/1044/1045`（双向删 friend 表）、已读回执 `1046/1047/1048`（`chat_message.status` 0→2 + 定向 UPDATE）、首条消息服务端自动建 `chat_thread`；跨机通知走新增 gRPC `NotifyReadMsg/NotifyDelFriend` |
-| 资料设置 | `GateServer/LogicSystem.cpp`、`MysqlDao.*` | HTTP `POST /user_profile`：Redis token 校验 → 更新 user 表 nick/desc（`desc` 是保留字需反引号）→ 删 `ubaseinfo_<uid>` 缓存 |
+| Image messages | `ChatServer/const.h`, `LogicSystem.*` | new protocol `ID_IMG_CHAT_MSG_REQ/RSP/NOTIFY` (1035/1036/1039) and the `DealChatImgMsg` flow (md5 dedup, unique_id, token check) |
+| Message reliability | `ChatServer/const.h`, `MysqlDao.*`, `MysqlMgr.*` | `AddChatMsg` persistence + a `MsgStatus` state machine (UN_READ / SEND_FAILED / READED / UN_UPLOAD) powering offline messaging and read receipts |
+| Concurrency fix | `ChatServer/MysqlDao.cpp` | friend-relation inserts use a fixed uid ordering (smaller uid first), eliminating deadlocks / unique-key conflicts on concurrent mutual adds |
+| Logout security | `ChatServer/CSession.cpp` | the Redis token (`USERTOKENPREFIX+uid`) is deleted on logout |
+| Redis capability | `StatusServer/RedisMgr.*` | added `SetWithExpire` (atomic SETEX) for verification codes / tokens |
+| File service | `ResourceServer/` (48 files; not in the original) | self-built file server: FileInfo / FileSystem / FileWorker / LogicWorker, Redis `DistLock`, file-info sync protocol `ID_FILE_INFO_SYNC_REQ/RSP` (1041/1042), Gate returns `reshost/resport` in the login response |
+| Social extensions | `ChatServer/const.h`, `LogicSystem.*`, `MysqlDao.*`, `ChatGrpcClient.*`, `ChatServiceImpl.*`, `message.proto` | added 2026-10-23: friend removal `1043/1044/1045` (bidirectional), read receipts `1046/1047/1048` (`chat_message.status` 0→2 + targeted UPDATE), server-side auto-creation of `chat_thread` on first message; cross-server notify via new gRPC `NotifyReadMsg/NotifyDelFriend` |
+| Profile editing | `GateServer/LogicSystem.cpp`, `MysqlDao.*` | HTTP `POST /user_profile`: Redis token check → update user nick/desc (`desc` is a reserved word, needs backticks) → evict the `ubaseinfo_<uid>` cache |
 
-
-### 目录
+### Directory
 
 ```
 wetalk/
-├── server/                # llfcchat server 源码（含 Linux CMake）+ common/LarsClient + common/lars（改造版 API）
-├── third_party/Lars/      # Lars 源码（sparse checkout，base/ 因含 Windows 非法文件名未检出，lars.proto 已补齐）
+├── server/                # server sources (with Linux CMake) + common/WetalkRouteClient + common/lars (patched route API)
+├── third_party/Lars/      # upstream governance framework (sparse checkout; base/ skipped for invalid Windows filenames, lars.proto restored)
 ├── docker/
 │   ├── Dockerfile.service / Dockerfile.varify / Dockerfile.lars-*
-│   ├── configs/           # 每个服务的容器版 config.ini（Mysql/Redis 指向容器服务名）
-│   ├── lars/              # lars_dns / lb_agent / reporter 配置
-│   ├── mysql/init/        # lars_dns 库(含路由表) + llfc 业务库
-│   └── seed/seed.sh       # 启动后把 ChatServer 节点写进 RouteData
+│   ├── configs/           # container config.ini per service (MySQL/Redis point at compose service names)
+│   ├── lars/              # lars_dns / lb_agent / reporter configs
+│   ├── mysql/init/        # lars_dns DB (route table) + wetalk business DB
+│   └── seed/seed.sh       # writes ChatServer nodes into RouteData after startup
 ├── docker-compose.yml
-├── docs/architecture.svg # 架构图（README 顶部引用，改图直接编辑 SVG）
-├── client-electron/      # Electron 桌面客户端（不依赖 Qt，HTTP + TCP 帧协议直连服务端，见其 README-CLIENT.md）
+├── docs/architecture.svg  # architecture diagram (referenced above; edit the SVG directly)
+├── client-electron/       # Electron desktop client (HTTP + raw TCP frame protocol; see its README-CLIENT.md)
 └── .env.example
 ```
 
-## 运行
+## Running
 
 ```bash
 cp .env.example .env
-# 编辑 .env：CHAT_ADV_IP1/2 填本机局域网 IP（客户端直连 8090/8091 用；本机联调填 127.0.0.1）
-# 编辑 docker/configs/VarifyServer/config.json：填你自己的 163 SMTP 授权码（原作者授权码已移除，不填则注册时收不到验证码邮件）
+# Edit .env: set CHAT_ADV_IP1/2 to your LAN IP (used by the client to reach 8090/8091; 127.0.0.1 for local dev)
+# Edit docker/configs/VarifyServer/config.json: your own 163 SMTP auth code (registration emails fail without it)
 docker compose up -d --build
 docker compose logs -f status lars-agent
 ```
 
-## 端口一览
+> **Upgrading from an older deployment**: the business database was renamed `llfc` → `wetalk`. The old database inside the
+> MySQL volume is not migrated automatically — run `docker compose down -v` (wipes data) and `up -d --build` again so the
+> init scripts create the new database with seed data.
 
-| 端口 | 服务 | 谁连它 |
+## Ports
+
+| Port | Service | Used by |
 | --- | --- | --- |
-| 8080 | GateServer（HTTP） | 客户端：登录/注册/改资料 |
-| 8090 / 8091 | ChatServer1 / 2（TCP 帧协议） | 客户端：长连接、消息、已读、心跳 |
-| 9090 | ResourceServer（TCP 分片） | 客户端：图片/文件上传下载 |
-| 8888 / 7779（UDP） | lars-agent（get_route / 上报） | StatusServer |
-| 3306 / 6379 | MySQL / Redis | 各服务（容器内网） |
+| 8080 | GateServer (HTTP) | client: login / register / profile |
+| 8090 / 8091 | ChatServer1 / 2 (TCP frame protocol) | client: long connection, messages, receipts, heartbeat |
+| 9090 | ResourceServer (TCP chunked) | client: image / file upload & download |
+| 8888 / 7779 (UDP) | lars-agent (get_route / report) | StatusServer |
+| 3306 / 6379 | MySQL / Redis | services (internal network) |
 
-- Gate（HTTP 登录注册）：`http://<host>:8080`
-- ChatServer：`<CHAT_ADV_IP>:8090 / 8091`（具体连哪个由 Status 经 Lars 决定，客户端不需要写死）
-- 观察调度结果：`docker compose logs status | grep Lars`
+- Gate (HTTP login/register): `http://<host>:8080`
+- ChatServer: `<CHAT_ADV_IP>:8090 / 8091` (which one is decided by Status via the governance framework — the client never hard-codes it)
+- Watch scheduling: `docker compose logs status | grep Lars`
 
-## 已知问题 / TODO
+## Known issues / TODO
 
-### 客户端（Electron）尚未实现
+### Client (Electron)
 
-| 项 | 说明 |
+| Item | Note |
 | --- | --- |
-| ~~断线自动重连~~ ✅ 已做 | 主进程指数退避（1s→30s，最多 8 次）自动重连 + 重新 1005 认证；期间渲染层显示横幅不踢登录页，恢复后刷新好友/未读并补拉历史。重连彻底失败或认证被拒才回登录页 |
-| ~~发文件（非图片）~~ ✅ 已做 | 复用 1003 分片上传 + 1035 落库（服务端把原始文件名/大小包进 content JSON）；客户端有文件气泡（文件名/大小/下载按钮），下载走 1033 分片 + 系统"另存为"。验证：`npm run test:file` |
-| ~~服务器地址记忆~~ ✅ 已做 | 登录/注册成功后 Gate 地址写入 localStorage，下次启动自动填充 |
-| 上传头像 | 服务端有 1031/1032，客户端目前只显示「首字母 + 配色」的字母头像 |
-| 群聊 | 服务端 `chat_thread.type` 预留了 private/group，但没有任何群表/群协议/群 UI |
-| 消息撤回 / 删除 | 未做，库里有 `chat_message` 可扩 |
-| 消息搜索 | 只有「搜 uid / 用户名」加好友，没有历史消息搜索 |
-| 桌面通知 / 托盘 | 窗口最小化后新消息无系统通知，也没有托盘图标 |
-| 服务器地址记忆 | 登录页的服务器地址没有持久化（每次默认 127.0.0.1:8080） |
-| 图片压缩 | 发图直接原图 base64 分片，大图慢；缺发送前缩放/进度条 |
-| 多端同时在线 | 服务端 `usession_<uid>` 是单会话，后登录会把前一个踢掉（原版设计如此） |
+| ~~Auto-reconnect~~ ✅ done | main process reconnects with exponential backoff (1s→30s, up to 8 tries) and re-authenticates (1005); the renderer shows a banner instead of returning to the login page; friends / unread / history re-sync on recovery |
+| ~~File transfer~~ ✅ done | reuses 1003 chunked upload + 1035 persistence (server wraps original filename/size into a content JSON); file bubbles with name/size/download button; downloads via 1033 chunks + native save dialog. Verified by `npm run test:file` |
+| ~~Server address memory~~ ✅ done | the Gate address is stored in localStorage after a successful login/register and refilled on next launch |
+| Avatar upload | server supports 1031/1032; the client currently shows letter avatars (initial + color) |
+| Group chat | `chat_thread.type` reserves private/group, but there are no group tables / protocols / UI yet |
+| Message recall / delete | not implemented; `chat_message` can be extended |
+| Message search | only uid/name search for adding friends; no history search |
+| Desktop notifications / tray | no system notification when minimized; no tray icon |
+| Image compression | images are sent as raw base64 chunks; no pre-send scaling / progress bar |
+| Multi-device login | `usession_<uid>` is single-session by design; a later login kicks the earlier one (inherited from the original) |
 
-### 服务端 / 基础设施
+### Server / infrastructure
 
-- [ ] 上游 lars_api `get_route` 的 IP 字节序转换疑似有双重转换（ntohl 后直接赋给 s_addr），已在 `common/lars/lars_api.cpp` 保持上游行为并标注；首次联调时优先用 `get_route` 打印验证。
-- [ ] Lars 上游 `dns_route.cpp` 用 `atoi` 读 serverip（>2^31 会溢出），建议后续改 `strtoul`。
-- [ ] protobuf 生成文件（message.pb.cc 等）是老版本 protoc 产物，Linux 构建统一用 CMake 重新生成，Windows 侧如混用需注意版本。
-- [x] ChatServer2 源码目录已归档到 `server/_attic/ChatServer2-outdated/`（它是**不含后续自研修改的旧拷贝**，构建一律用 ChatServer + 两份 config.ini，见 compose chat1/chat2）。
-- [x] VarifyServer 补了 config.ini；ResourceServer 为自建服务，其配置项已含在本目录 `docker/configs/`。
+- [ ] Upstream `lars_api get_route` seems to double-convert IP byte order (ntohl result assigned straight into `s_addr`); kept upstream behavior in `common/lars/lars_api.cpp` with a note — verify with `get_route` printing on first bring-up.
+- [ ] Upstream `dns_route.cpp` reads serverip with `atoi` (overflows above 2^31); suggest `strtoul`.
+- [ ] Generated protobuf files (message.pb.cc etc.) are from an old protoc; the Linux build regenerates them via CMake — mind versions if mixing with Windows builds.
+- [x] The ChatServer2 source directory is archived at `server/_attic/ChatServer2-outdated/` (an **outdated copy without the later changes**; always build via ChatServer + the two config.ini files, see compose chat1/chat2).
+- [x] VarifyServer got a config.ini; ResourceServer is a self-built service with its config in `docker/configs/`.
 
-## 容器化联调注意（inet_aton 坑）
+## Containerization caveat (inet_aton)
 
-上游 `lars_reactor` 的 `tcp_client`/`udp_client` 用 `inet_aton()` 解析地址，**不能填容器服务名**。本工程处理：
+The upstream `lars_reactor` `tcp_client`/`udp_client` parse addresses with `inet_aton()` and **cannot resolve compose service
+names**. How this repo handles it:
 
-- `docker/lars/lars_lb_agent.conf` 的 `[reporter]`/`[dnsserver]` 直接写 compose 固定 IP（172.20.0.21 / 172.20.0.20）；`lars_dns`/`lars_reporter` 连 MySQL 走 libmysqlclient 自带域名解析，服务名可用。
-- `docker/configs/StatusServer/config.ini` 的 `[Lars] AgentIp` 写 172.20.0.22。
-- `common/lars/lars_api.cpp`（改造版）已升级：点分 IP 直接用，主机名走 `getaddrinfo`，解析失败显式报错退出。
+- `docker/lars/lars_lb_agent.conf` `[reporter]`/`[dnsserver]` use fixed compose IPs (172.20.0.21 / 172.20.0.20); `lars_dns`/`lars_reporter` reach MySQL through libmysqlclient's own resolver, so service names work there.
+- `docker/configs/StatusServer/config.ini` `[Lars] AgentIp` is 172.20.0.22.
+- `common/lars/lars_api.cpp` (patched) was upgraded: dotted IPs pass through, hostnames go through `getaddrinfo`, and resolution failure exits with an explicit error.
 
-## 构建修复记录（2026-10-23 整合收尾）
+## Build fix log (integration wrap-up, 2026-10-23)
 
-| 问题 | 修复 |
+| Problem | Fix |
 | --- | --- |
-| `common/LarsClient.cpp` 未被任何 target 编译，status 链接必失败 | CMake 新增 `wetalk_common` 静态库并链接进全部服务 |
-| `lars_api` 库同时编译改造版与上游 `lars_api.cpp`，同名类重复符号 | 只编译改造版；上游头文件不再参与 |
-| `LarsClient.cpp` 缺 `ConfigMgr.h` include | 已补（common/ 与各服务目录的 ConfigMgr 内容一致，实现由服务自身提供） |
-| `Dockerfile.service` 产物路径 `build/${SERVICE}/${SERVICE}` 错、COPY 不存在的 config | 改为 `build/${SERVICE}`；config 一律由 compose 卷挂载（chat1/chat2 共用 chat 镜像） |
-| compose `depends_on` 混用 map/list 语法非法 | 统一 map 形式 |
-| ChatServer 间 peer RPC 主机名 `chatserver1/2` 在容器网不可解析 | chat1/chat2 加 network aliases `chatserver1`/`chatserver2` |
-| ResourceServer 需要客户端直连（gate 下发 reshost/resport） | compose 暴露 9090 端口 |
-| **VarifyServer 其实是 Node.js 服务**（server.js + @grpc/grpc-js + nodemailer），放进 CMake 必然构建失败 | CMake 移除 varify target；新增 `docker/Dockerfile.varify`（node:20-alpine + npm install）；compose 改挂容器版 `config.json`（原作者公网 mysql/redis 地址已替换为容器服务名，SMTP 授权码留占位） |
+| `common/WetalkRouteClient.cpp` (formerly LarsClient.cpp) was compiled by no target; status link always failed | CMake gained the `wetalk_common` static library, linked into every service |
+| the `lars_api` library compiled both the patched and the upstream `lars_api.cpp`, duplicating symbols | only the patched version is compiled; upstream headers no longer participate |
+| `WetalkRouteClient.cpp` missing the `ConfigMgr.h` include | added (common/ and per-service ConfigMgr are identical in content; implementations are provided per service) |
+| `Dockerfile.service` had wrong output path `build/${SERVICE}/${SERVICE}` and copied nonexistent configs | fixed to `build/${SERVICE}`; configs are always mounted by compose (chat1/chat2 share the chat image) |
+| compose `depends_on` mixed map/list syntax (invalid) | unified to map form |
+| peer RPC hostnames `chatserver1/2` unresolvable inside the container network | chat1/chat2 got network aliases `chatserver1`/`chatserver2` |
+| ResourceServer needs direct client access (gate returns reshost/resport) | compose exposes port 9090 |
+| **VarifyServer is actually a Node.js service** (server.js + @grpc/grpc-js + nodemailer); putting it into CMake was doomed | removed the varify CMake target; added `docker/Dockerfile.varify` (node:20-alpine + npm install); compose mounts the container `config.json` (original author's public mysql/redis endpoints replaced with service names; SMTP auth code left as placeholder) |

@@ -1,7 +1,7 @@
 {
   "name": "wetalk-client",
   "version": "0.1.0",
-  "description": "WeTalk desktop client (Electron + Node.js) for llfcchat+Lars integrated server",
+  "description": "WeTalk desktop client (Electron + Node.js) for the WeTalk IM server",
   "main": "main.js",
   "scripts": {
     "start": "electron .",

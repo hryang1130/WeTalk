@@ -136,6 +136,11 @@ int lars_client::get_host(int modid, int cmdid, std::string& ip, int& port)
     ret = rsp.ParseFromArray(read_buf + MESSAGE_HEAD_LEN, message_len - MESSAGE_HEAD_LEN);
     if (!ret || rsp.modid() != modid || rsp.cmdid() != cmdid) return lars::RET_SYSTEM_ERROR;
 
+    // 必须检查 retcode：agent 无路由/过载时回 RET_NOEXIST/RET_OVERLOAD，
+    // 此时 host 字段是 proto3 默认值(ip=0,port=0)，若不检查会把 "0.0.0.0:0"
+    // 当成有效结果返回（上游 api 也是先判 retcode 再取 host）
+    if (rsp.retcode() != lars::RET_SUCC) return rsp.retcode();
+
     const lars::HostInfo& host = rsp.host();
     struct in_addr inaddr;
     inaddr.s_addr = ntohl(host.ip());

@@ -2,7 +2,7 @@
 #include "ConfigMgr.h"
 #include "const.h"
 #include "RedisMgr.h"
-#include "LarsClient.h"
+#include "WetalkRouteClient.h"
 #include <climits>
 #include <iostream>
 
@@ -26,7 +26,7 @@ Status StatusServiceImpl::GetChatServer(ServerContext* context, const GetChatSer
 	insertToken(request->uid(), reply->token());
 
 	// 向 Lars 上报一次成功调度，供 Agent 窗口统计失败率 / 过载判断
-	auto& lars = LarsClient::Instance();
+	auto& lars = WetalkRouteClient::Instance();
 	if (lars.enabled()) {
 		lars.report(server.host, atoi(server.port.c_str()), 0);
 	}
@@ -60,14 +60,14 @@ StatusServiceImpl::StatusServiceImpl()
 	}
 
 	// Lars 服务治理：配置在 config.ini [Lars] 段；未启用时退回静态配置
-	LarsClient::Instance().InitFromConfig();
+	WetalkRouteClient::Instance().InitFromConfig();
 }
 
 ChatServer StatusServiceImpl::getChatServer() {
 	std::lock_guard<std::mutex> guard(_server_mtx);
 
 	// 1) 优先走 Lars：由 Agent 根据各节点失败率/过载状态返回健康节点
-	auto& lars = LarsClient::Instance();
+	auto& lars = WetalkRouteClient::Instance();
 	if (lars.enabled()) {
 		std::string ip;
 		int port = 0;

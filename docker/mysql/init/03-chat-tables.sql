@@ -1,6 +1,6 @@
--- Fix: chat tables must live in the `llfc` schema (ChatServer connects Schema=llfc).
+-- Fix: chat tables must live in the `wetalk` schema (ChatServer connects Schema=wetalk).
 -- The old 03-chat-message.sql wrongly created a separate `chat_message` database.
-USE llfc;
+USE wetalk;
 CREATE TABLE IF NOT EXISTS `chat_thread` (
   `thread_id` bigint UNSIGNED NOT NULL AUTO_INCREMENT,
   `type` varchar(16) NOT NULL DEFAULT 'private',

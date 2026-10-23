@@ -5,12 +5,12 @@
 #include <memory>
 #include <mutex>
 
-class LarsClientImpl;
+class WetalkRouteClientImpl;
 
-class LarsClient
+class WetalkRouteClient
 {
 public:
-    static LarsClient& Instance();
+    static WetalkRouteClient& Instance();
 
     // 从 ConfigMgr 的 [Lars] 段读取配置；Enable != true 时不启用（走静态配置兜底）
     void InitFromConfig();
@@ -27,10 +27,10 @@ public:
     void report(const std::string& ip, int port, int retcode);
 
 private:
-    LarsClient() = default;
+    WetalkRouteClient() = default;
     bool _enabled = false;
     int _modid = 1;
     int _cmdid = 1;
     std::mutex _mtx;
-    std::unique_ptr<LarsClientImpl> _impl;
+    std::unique_ptr<WetalkRouteClientImpl> _impl;
 };

@@ -1,13 +1,13 @@
-#include "LarsClient.h"
+#include "WetalkRouteClient.h"
 #include "lars/lars_api.h"
 #include "ConfigMgr.h"
 #include <iostream>
 
 // pimpl：隔离 lars_api 头文件依赖
-class LarsClientImpl
+class WetalkRouteClientImpl
 {
 public:
-    LarsClientImpl(const std::string& agent_ip, short base_port)
+    WetalkRouteClientImpl(const std::string& agent_ip, short base_port)
         : _client(agent_ip, base_port) {}
 
     int regInit(int modid, int cmdid) { return _client.reg_init(modid, cmdid); }
@@ -20,17 +20,17 @@ private:
     lars_client _client;
 };
 
-LarsClient& LarsClient::Instance()
+WetalkRouteClient& WetalkRouteClient::Instance()
 {
-    static LarsClient inst;
+    static WetalkRouteClient inst;
     return inst;
 }
 
-void LarsClient::Init(const std::string& agent_ip, short agent_udp_base_port, int modid, int cmdid)
+void WetalkRouteClient::Init(const std::string& agent_ip, short agent_udp_base_port, int modid, int cmdid)
 {
     std::lock_guard<std::mutex> lock(_mtx);
     try {
-        _impl = std::make_unique<LarsClientImpl>(agent_ip, agent_udp_base_port);
+        _impl = std::make_unique<WetalkRouteClientImpl>(agent_ip, agent_udp_base_port);
         _modid = modid;
         _cmdid = cmdid;
         int ret = _impl->regInit(modid, cmdid);
@@ -48,7 +48,7 @@ void LarsClient::Init(const std::string& agent_ip, short agent_udp_base_port, in
     }
 }
 
-void LarsClient::InitFromConfig()
+void WetalkRouteClient::InitFromConfig()
 {
     auto& cfg = ConfigMgr::Inst();
     std::string enable = cfg["Lars"]["Enable"];
@@ -62,7 +62,7 @@ void LarsClient::InitFromConfig()
          atoi(cfg["Lars"]["Cmdid"].c_str()));
 }
 
-bool LarsClient::getHost(std::string& ip, int& port)
+bool WetalkRouteClient::getHost(std::string& ip, int& port)
 {
     if (!_enabled) return false;
     std::lock_guard<std::mutex> lock(_mtx);
@@ -73,7 +73,7 @@ bool LarsClient::getHost(std::string& ip, int& port)
     return false;
 }
 
-void LarsClient::report(const std::string& ip, int port, int retcode)
+void WetalkRouteClient::report(const std::string& ip, int port, int retcode)
 {
     if (!_enabled) return;
     std::lock_guard<std::mutex> lock(_mtx);

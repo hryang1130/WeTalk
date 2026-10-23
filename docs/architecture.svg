@@ -23,7 +23,7 @@
 
   <rect x="0" y="0" width="1180" height="580" fill="#f6f3f0"/>
   <text x="30" y="26" font-size="17" font-weight="700" fill="#1c1a18">WeTalk 架构总览</text>
-  <text x="1150" y="26" font-size="11" fill="#948d86" text-anchor="end">llfcchat 微服务 × Lars 服务治理 · Docker Compose 172.20.0.0/16</text>
+  <text x="1150" y="26" font-size="11" fill="#948d86" text-anchor="end">WeTalk IM 微服务 × 服务治理 · Docker Compose 172.20.0.0/16</text>
 
   <!-- ===== 连线（先画线，盒子后画盖上端点） ===== -->
   <!-- ① 客户端 -> Gate -->
@@ -122,7 +122,7 @@
   <!-- MySQL -->
   <rect class="box" x="700" y="430" width="180" height="90" rx="10" fill="#fbfaf9"/>
   <text x="790" y="456" class="t" text-anchor="middle">MySQL</text>
-  <text x="790" y="474" class="s" text-anchor="middle">llfc：用户 / 好友 / 会话</text>
+  <text x="790" y="474" class="s" text-anchor="middle">wetalk：用户 / 好友 / 会话</text>
   <text x="790" y="489" class="s" text-anchor="middle">chat_message 消息持久化</text>
   <text x="790" y="504" class="s" text-anchor="middle">lars_dns：RouteData 路由表</text>
   <!-- Redis -->

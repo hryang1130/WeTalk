@@ -1,15 +1,15 @@
--- llfc 业务库：内容取自 llfcchat/sql备份/llfc.sql
-CREATE DATABASE IF NOT EXISTS llfc;
-USE llfc;
+-- wetalk 业务库：种子数据源自 llfcchat 项目（致谢原作者），库名已品牌化为 wetalk
+CREATE DATABASE IF NOT EXISTS wetalk;
+USE wetalk;
 
 /*
  Navicat Premium Data Transfer
 
- Source Server         : llfcmysql
+ Source Server         : wetalk-mysql
  Source Server Type    : MySQL
  Source Server Version : 80027 (8.0.27)
  Source Host           : 81.68.86.146:3308
- Source Schema         : llfc
+ Source Schema         : wetalk
 
  Target Server Type    : MySQL
  Target Server Version : 80027 (8.0.27)
@@ -45,6 +45,10 @@ INSERT INTO `friend` VALUES (63, 1012, 1050, 'test23');
 INSERT INTO `friend` VALUES (64, 1050, 1012, '');
 INSERT INTO `friend` VALUES (81, 1002, 1019, 'zack');
 INSERT INTO `friend` VALUES (82, 1019, 1002, '');
+
+-- 测试账号 hao(1059) / xm(1099) 互为好友
+INSERT INTO `friend` VALUES (89, 1059, 1099, 'xm');
+INSERT INTO `friend` VALUES (90, 1099, 1059, 'hao');
 
 -- ----------------------------
 -- Table structure for friend_apply
@@ -86,12 +90,12 @@ CREATE TABLE `user`  (
   UNIQUE INDEX `uid`(`uid` ASC) USING BTREE,
   UNIQUE INDEX `email`(`email` ASC) USING BTREE,
   INDEX `name`(`name` ASC) USING BTREE
-) ENGINE = InnoDB AUTO_INCREMENT = 61 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_unicode_ci ROW_FORMAT = DYNAMIC;
+) ENGINE = InnoDB AUTO_INCREMENT = 63 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_unicode_ci ROW_FORMAT = DYNAMIC;
 
 -- ----------------------------
 -- Records of user
 -- ----------------------------
-INSERT INTO `user` VALUES (3, 1002, 'llfc', 'secondtonone1@163.com', '654321)', 'llfc', '', 0, ':/res/head_1.jpg');
+INSERT INTO `user` VALUES (3, 1002, 'wetalk', 'secondtonone1@163.com', '654321)', 'wetalk', '', 0, ':/res/head_1.jpg');
 INSERT INTO `user` VALUES (4, 1003, 'tc', '18165031775@qq.com', '123456', 'tc', '', 0, ':/res/head_1.jpg');
 INSERT INTO `user` VALUES (5, 1004, 'yuanweihua', '1456188862@qq.com', '}kyn;89>?<', 'yuanweihua', '', 0, ':/res/head_1.jpg');
 INSERT INTO `user` VALUES (6, 1005, 'test', '2022202210033@whu.edu.cn', '}kyn;89>?<', 'test', '', 0, ':/res/head_1.jpg');
@@ -125,6 +129,11 @@ INSERT INTO `user` VALUES (56, 1054, 'sqy', '3175614975@qq.com', '745230', 'sqy'
 INSERT INTO `user` VALUES (57, 1055, 'ocz', 'q3175614975@163.com', '745230', 'ocz', '', 0, ':/res/head_3.jpg');
 INSERT INTO `user` VALUES (58, 1056, 'test28', '1669475972@qq.com', '230745', 'test28', '', 0, ':/res/head_1.jpg');
 INSERT INTO `user` VALUES (60, 1058, 'NoOne', '1764850358@qq.com', '745230', '', '', 0, '');
+
+-- 联调测试账号（test-e2e.js / test-offline.js / test-file.js 默认账号，密码 123456）
+-- xm 的 uid 必须是 1099：test-e2e.js 的 PEER 默认值硬编码为 1099
+INSERT INTO `user` VALUES (61, 1059, 'hao', 'hao@wetalk.com', '123456', 'Hao', '', 0, ':/res/head_1.jpg');
+INSERT INTO `user` VALUES (62, 1099, 'xm', 'xm@wetalk.com', '123456', 'Xm', '', 0, ':/res/head_2.jpg');
 
 -- ----------------------------
 -- Table structure for user_id

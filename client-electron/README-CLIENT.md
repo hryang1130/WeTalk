@@ -1,7 +1,7 @@
 ﻿# WeTalk Electron 桌面客户端
 
 用 Electron + Node.js 重写的桌面客户端，**不依赖 Qt**，直接对接 WeTalk 整合服务端
-（llfcchat 微服务 + Lars 负载均衡）。
+（C++ IM 微服务 + 服务治理）。
 
 ## 运行
 
