@@ -57,6 +57,51 @@ LogicSystem::LogicSystem() {
 		
 	});
 
+	//更新个人资料（昵称/签名）。key 与 ChatServer 的 USERTOKENPREFIX 保持一致
+	RegPost("/user_profile", [](std::shared_ptr<HttpConnection> connection) {
+		auto body_str = boost::beast::buffers_to_string(connection->_request.body().data());
+		connection->_response.set(http::field::content_type, "text/json");
+		Json::Value root;
+		Json::Reader reader;
+		Json::Value src_root;
+		if (!reader.parse(body_str, src_root)) {
+			root["error"] = ErrorCodes::Error_Json;
+			beast::ostream(connection->_response.body()) << root.toStyledString();
+			return true;
+		}
+		int uid = src_root["uid"].asInt();
+		auto token = src_root["token"].asString();
+		auto nick = src_root["nick"].asString();
+		auto desc = src_root["desc"].asString();
+		if (uid <= 0 || nick.empty()) {
+			root["error"] = ErrorCodes::UidInvalid;
+			beast::ostream(connection->_response.body()) << root.toStyledString();
+			return true;
+		}
+		// 校验登录 token
+		std::string token_key = "utoken_" + std::to_string(uid);
+		std::string token_value;
+		bool b_token = RedisMgr::GetInstance()->Get(token_key, token_value);
+		if (!b_token || token_value != token) {
+			root["error"] = ErrorCodes::TokenInvalid;
+			beast::ostream(connection->_response.body()) << root.toStyledString();
+			return true;
+		}
+		if (!MysqlMgr::GetInstance()->UpdateUserProfile(uid, nick, desc)) {
+			root["error"] = ErrorCodes::PasswdUpFailed; // 复用"更新失败"错误码
+			beast::ostream(connection->_response.body()) << root.toStyledString();
+			return true;
+		}
+		// 清掉 Redis 基本信息缓存，ChatServer 下次登录会重新读库
+		RedisMgr::GetInstance()->Del("ubaseinfo_" + std::to_string(uid));
+		root["error"] = ErrorCodes::Success;
+		root["uid"] = uid;
+		root["nick"] = nick;
+		root["desc"] = desc;
+		beast::ostream(connection->_response.body()) << root.toStyledString();
+		return true;
+	});
+
 	RegPost("/get_varifycode", [](std::shared_ptr<HttpConnection> connection) {
 		auto body_str = boost::beast::buffers_to_string(connection->_request.body().data());
 		std::cout << "receive body is " << body_str << std::endl;

@@ -29,6 +29,10 @@ function createWindow() {
   win.webContents.on('console-message', (_e, _level, message, line, sourceId) => {
     console.log('[renderer]', message, (sourceId || '').split(/[\\/]/).pop() + ':' + line);
   });
+  // 渲染进程崩溃诊断（排查"窗口自动退出/白屏"）
+  win.webContents.on('render-process-gone', (_e, details) => {
+    console.error('[render-gone]', JSON.stringify(details));
+  });
   win.loadFile(path.join(__dirname, 'renderer', 'index.html'));
 }
 
@@ -124,6 +128,22 @@ ipcMain.handle('res:upload', (_e, { uid, msgid, name, dataB64 }) =>
 ipcMain.handle('res:download', async (_e, { uid, token, name }) => {
   const r = await res.download(uid, token, name);
   return { name: r.name, dataB64: r.buffer.toString('base64') };
+});
+// 焦点修复：输入法卡死/窗口失活后把前台焦点要回来
+ipcMain.handle('win:refocus', () => {
+  if (!win || win.isDestroyed()) return false;
+  try { win.blur(); win.webContents.focus(); win.focus(); } catch (_) {}
+  return true;
+});
+// 窗口尺寸：登录页用小窗，主界面用大窗
+ipcMain.handle('win:set-size', (_e, { width, height }) => {
+  if (!win || win.isDestroyed()) return false;
+  try {
+    win.setMinimumSize(Math.min(width, 900), Math.min(height, 600));
+    win.setSize(width, height);
+    win.center();
+  } catch (_) {}
+  return true;
 });
 
 app.whenReady().then(createWindow);

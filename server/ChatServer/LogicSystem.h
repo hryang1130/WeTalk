@@ -48,6 +48,10 @@ private:
 	void CreatePrivateChat(std::shared_ptr<CSession> session, const short& msg_id, const string& msg_data);
 	void LoadChatMsg(std::shared_ptr<CSession> session, const short& msg_id, const string& msg_data);
 	void DealChatImgMsg(std::shared_ptr<CSession> session, const short& msg_id, const string& msg_data);
+	void DealDeleteFriend(std::shared_ptr<CSession> session, const short& msg_id, const string& msg_data);
+	void DealReadMsg(std::shared_ptr<CSession> session, const short& msg_id, const string& msg_data);
+	// 同机在线通知：对方在本机则直接发，跨机返回 false（简化：跨机删除/已读不实时通知）
+	bool NotifySameServer(int touid, const std::string& data, short msg_id);
 	
 	std::thread _worker_thread;
 	std::queue<shared_ptr<LogicNode>> _msg_que;

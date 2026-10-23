@@ -111,6 +111,10 @@ void LogicSystem::RegisterCallBacks() {
 	_fun_callbacks[ID_IMG_CHAT_MSG_REQ] = std::bind(&LogicSystem::DealChatImgMsg, this,
 		placeholders::_1, placeholders::_2, placeholders::_3);
 
+	_fun_callbacks[ID_DELETE_FRIEND_REQ] = std::bind(&LogicSystem::DealDeleteFriend, this,
+		placeholders::_1, placeholders::_2, placeholders::_3);
+	_fun_callbacks[ID_READ_MSG_REQ] = std::bind(&LogicSystem::DealReadMsg, this,
+		placeholders::_1, placeholders::_2, placeholders::_3);
 }
 
 void LogicSystem::LoginHandler(shared_ptr<CSession> session, const short &msg_id, const string &msg_data) {
@@ -494,6 +498,14 @@ void LogicSystem::DealChatTextMsg(std::shared_ptr<CSession> session, const short
 	rtvalue["touid"] = touid;
 	auto thread_id = root["thread_id"].asInt();
 	rtvalue["thread_id"] = thread_id;
+	// First message from client may carry thread_id=0: resolve or create the thread here
+	if (thread_id <= 0) {
+		int resolved = 0;
+		if (MysqlMgr::GetInstance()->CreatePrivateChat(uid, touid, resolved) && resolved > 0) {
+			thread_id = resolved;
+			rtvalue["thread_id"] = thread_id;
+		}
+	}
 	std::vector<std::shared_ptr<ChatMessage>> chat_datas;
 	auto timestamp = getCurrentTimestamp();
 	for (const auto& txt_obj : arrays) {
@@ -508,7 +520,7 @@ void LogicSystem::DealChatTextMsg(std::shared_ptr<CSession> session, const short
 		chat_msg->unique_id = unique_id;
 		chat_msg->thread_id = thread_id;
 		chat_msg->content = content;
-		chat_msg->status = 2;
+		chat_msg->status = MsgStatus::UN_READ; // 落库为未读，对方读后经已读上报改为 READED
 		chat_datas.push_back(chat_msg);
 	}
 
@@ -937,6 +949,14 @@ void LogicSystem::DealChatImgMsg(std::shared_ptr<CSession> session,
 	rtvalue["touid"] = touid;
 	auto thread_id = root["thread_id"].asInt();
 	rtvalue["thread_id"] = thread_id;
+	// First message from client may carry thread_id=0: resolve or create the thread here
+	if (thread_id <= 0) {
+		int resolved = 0;
+		if (MysqlMgr::GetInstance()->CreatePrivateChat(uid, touid, resolved) && resolved > 0) {
+			thread_id = resolved;
+			rtvalue["thread_id"] = thread_id;
+		}
+	}
 	rtvalue["md5"] = md5;
 	rtvalue["unique_name"] = unique_name;
 	rtvalue["unique_id"] = unique_id;
@@ -962,5 +982,95 @@ void LogicSystem::DealChatImgMsg(std::shared_ptr<CSession> session,
 		session->Send(return_str, ID_IMG_CHAT_MSG_RSP);
 		});
 
+}
+
+bool LogicSystem::NotifySameServer(int touid, const std::string& data, short msg_id) {
+	auto& cfg = ConfigMgr::Inst();
+	auto self_name = cfg["SelfServer"]["Name"];
+	std::string to_ip_value;
+	bool b_ip = RedisMgr::GetInstance()->Get(USERIPPREFIX + std::to_string(touid), to_ip_value);
+	if (!b_ip || to_ip_value != self_name) {
+		return false;
+	}
+	auto session = UserMgr::GetInstance()->GetSession(touid);
+	if (!session) {
+		return false;
+	}
+	session->Send(data, msg_id);
+	return true;
+}
+
+void LogicSystem::DealDeleteFriend(std::shared_ptr<CSession> session,
+	const short& msg_id, const string& msg_data) {
+	Json::Reader reader;
+	Json::Value root;
+	reader.parse(msg_data, root);
+	auto uid = root["uid"].asInt();
+	auto touid = root["touid"].asInt();
+
+	Json::Value rtvalue;
+	rtvalue["error"] = ErrorCodes::Success;
+	rtvalue["uid"] = uid;
+	rtvalue["touid"] = touid;
+
+	if (uid <= 0 || touid <= 0) {
+		rtvalue["error"] = ErrorCodes::UidInvalid;
+		session->Send(rtvalue.toStyledString(), ID_DELETE_FRIEND_RSP);
+		return;
+	}
+
+	// 双向删除 friend 表记录
+	if (!MysqlMgr::GetInstance()->DeleteFriend(uid, touid)) {
+		rtvalue["error"] = ErrorCodes::UidInvalid;
+		session->Send(rtvalue.toStyledString(), ID_DELETE_FRIEND_RSP);
+		return;
+	}
+	session->Send(rtvalue.toStyledString(), ID_DELETE_FRIEND_RSP);
+
+	// 对方在线（同机）则实时通知；跨机简化为下次登录生效
+	Json::Value notify;
+	notify["uid"] = uid;       // 谁删的
+	notify["touid"] = touid;   // 被删的人
+	NotifySameServer(touid, notify.toStyledString(), ID_NOTIFY_DEL_FRIEND_REQ);
+}
+
+void LogicSystem::DealReadMsg(std::shared_ptr<CSession> session,
+	const short& msg_id, const string& msg_data) {
+	Json::Reader reader;
+	Json::Value root;
+	reader.parse(msg_data, root);
+	auto uid = root["uid"].asInt();            // 读消息的人
+	auto touid = root["touid"].asInt();        // 消息发送方
+	auto thread_id = root["thread_id"].asInt();
+	auto last_message_id = root["last_message_id"].asInt();
+
+	Json::Value rtvalue;
+	rtvalue["error"] = ErrorCodes::Success;
+	rtvalue["uid"] = uid;
+	rtvalue["touid"] = touid;
+	rtvalue["thread_id"] = thread_id;
+	rtvalue["last_message_id"] = last_message_id;
+
+	if (uid <= 0 || touid <= 0 || thread_id <= 0) {
+		rtvalue["error"] = ErrorCodes::UidInvalid;
+		session->Send(rtvalue.toStyledString(), ID_READ_MSG_RSP);
+		return;
+	}
+
+	int updated = MysqlMgr::GetInstance()->MarkMsgRead(thread_id, touid, uid, last_message_id);
+	if (updated < 0) {
+		rtvalue["error"] = ErrorCodes::LOAD_CHAT_FAILED;
+		session->Send(rtvalue.toStyledString(), ID_READ_MSG_RSP);
+		return;
+	}
+	session->Send(rtvalue.toStyledString(), ID_READ_MSG_RSP);
+
+	// 实时通知发送方（同机在线）；跨机简化为不通知
+	Json::Value notify;
+	notify["uid"] = uid;            // 已读的人
+	notify["touid"] = touid;        // 收到通知的发送方
+	notify["thread_id"] = thread_id;
+	notify["last_message_id"] = last_message_id;
+	NotifySameServer(touid, notify.toStyledString(), ID_NOTIFY_READ_MSG_REQ);
 }
 

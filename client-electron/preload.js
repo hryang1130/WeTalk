@@ -13,6 +13,8 @@ contextBridge.exposeInMainWorld('wetalk', {
   resClose: () => ipcRenderer.invoke('res:close'),
   resUpload: (uid, msgid, name, dataB64) => ipcRenderer.invoke('res:upload', { uid, msgid, name, dataB64 }),
   resDownload: (uid, token, name) => ipcRenderer.invoke('res:download', { uid, token, name }),
+  refocus: () => ipcRenderer.invoke('win:refocus'),
+  setSize: (width, height) => ipcRenderer.invoke('win:set-size', { width, height }),
   onFrame: (cb) => ipcRenderer.on('tcp:frame', (_e, frame) => cb(frame)),
   onClosed: (cb) => ipcRenderer.on('tcp:closed', (_e, info) => cb(info)),
   onError: (cb) => ipcRenderer.on('tcp:error', (_e, info) => cb(info)),

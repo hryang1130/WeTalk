@@ -1046,3 +1046,61 @@ bool MysqlDao::AddChatMsg(std::shared_ptr<ChatMessage> chat_data) {
 	}
 }
 
+bool MysqlDao::DeleteFriend(int uid, int friend_uid) {
+	auto con = pool_->getConnection();
+	if (!con) {
+		return false;
+	}
+	Defer defer([this, &con]() {
+		pool_->returnConnection(std::move(con));
+		});
+	auto& conn = con->_con;
+	try {
+		// 双向删除 friend 表记录
+		std::unique_ptr<sql::PreparedStatement> pstmt(
+			conn->prepareStatement(
+				"DELETE FROM friend WHERE (self_id = ? AND friend_id = ?) OR (self_id = ? AND friend_id = ?)"));
+		pstmt->setInt(1, uid);
+		pstmt->setInt(2, friend_uid);
+		pstmt->setInt(3, friend_uid);
+		pstmt->setInt(4, uid);
+		int rows = pstmt->executeUpdate();
+		std::cout << "DeleteFriend removed " << rows << " rows" << std::endl;
+		return true;
+	}
+	catch (sql::SQLException& e) {
+		std::cerr << "SQLException: " << e.what() << std::endl;
+		return false;
+	}
+}
+
+int MysqlDao::MarkMsgRead(int thread_id, int sender_id, int recv_id, int last_message_id) {
+	auto con = pool_->getConnection();
+	if (!con) {
+		return -1;
+	}
+	Defer defer([this, &con]() {
+		pool_->returnConnection(std::move(con));
+		});
+	auto& conn = con->_con;
+	try {
+		// 把"我收到的、来自对方的、不超过已读位置"的消息标记为已读
+		std::unique_ptr<sql::PreparedStatement> pstmt(
+			conn->prepareStatement(
+				"UPDATE chat_message SET status = ? WHERE thread_id = ? AND sender_id = ? AND recv_id = ? AND message_id <= ? AND status = ?"));
+		pstmt->setInt(1, MsgStatus::READED);
+		pstmt->setInt(2, thread_id);
+		pstmt->setInt(3, sender_id);
+		pstmt->setInt(4, recv_id);
+		pstmt->setInt(5, last_message_id);
+		pstmt->setInt(6, MsgStatus::UN_READ);
+		int rows = pstmt->executeUpdate();
+		std::cout << "MarkMsgRead updated " << rows << " messages" << std::endl;
+		return rows;
+	}
+	catch (sql::SQLException& e) {
+		std::cerr << "SQLException: " << e.what() << std::endl;
+		return -1;
+	}
+}
+

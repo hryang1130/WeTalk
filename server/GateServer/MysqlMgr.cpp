@@ -29,4 +29,8 @@ bool MysqlMgr::TestProcedure(const std::string& email, int& uid, string& name) {
 	return _dao.TestProcedure(email,uid, name);
 }
 
+bool MysqlMgr::UpdateUserProfile(int uid, const std::string& nick, const std::string& desc) {
+	return _dao.UpdateUserProfile(uid, nick, desc);
+}
+
 

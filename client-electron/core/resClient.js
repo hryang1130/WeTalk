@@ -5,9 +5,35 @@
 // 下载: 1033 {seq,name,uid,token,client_path} 从 seq=1 循环，RSP {data,seq,last?...} 直到服务端置 last
 //       （1033 首片服务端校验 Redis token，必须传登录时的 uid/token）
 const net = require('net');
-const { encodeFrame, decodeFrames } = require('./protocol');
+const { md5 } = require('./md5');
 
 const CHUNK = 32 * 1024;
+
+// ResourceServer 的包头与 ChatServer 不同：msgid(2B 大端) + msglen(4B 大端)，共 6 字节
+// （server/ResourceServer/const.h: HEAD_TOTAL_LEN=6, HEAD_DATA_LEN=4, network_to_host_long）
+function resEncode(msgid, obj) {
+  const body = Buffer.from(JSON.stringify(obj), 'utf8');
+  const head = Buffer.alloc(6);
+  head.writeUInt16BE(msgid, 0);
+  head.writeUInt32BE(body.length, 2);
+  return Buffer.concat([head, body]);
+}
+function resDecode(state, chunk) {
+  state.buf = state.buf.length ? Buffer.concat([state.buf, chunk]) : chunk;
+  const frames = [];
+  for (;;) {
+    if (state.buf.length < 6) break;
+    const msgid = state.buf.readUInt16BE(0);
+    const len = state.buf.readUInt32BE(2);
+    if (state.buf.length < 6 + len) break;
+    const body = state.buf.slice(6, 6 + len);
+    state.buf = state.buf.slice(6 + len);
+    let obj = null;
+    try { obj = JSON.parse(body.toString('utf8')); } catch (_) { obj = {}; }
+    frames.push({ msgid, obj });
+  }
+  return frames;
+}
 
 class ResClient {
   constructor(onLog = () => {}) {
@@ -42,7 +68,7 @@ class ResClient {
   }
 
   _onData(chunk) {
-    const frames = decodeFrames(this.rx, chunk);
+    const frames = resDecode(this.rx, chunk);
     for (const f of frames) {
       const idx = this.pending.findIndex((p) => p.msgid === f.msgid);
       if (idx >= 0) this.pending.splice(idx, 1)[0].resolve(f.obj);
@@ -56,7 +82,7 @@ class ResClient {
       // 注意：ResourceServer 的响应 msgid = 请求 msgid + 1（1037→1038、1033→1034、1003→1004）
       const p = { msgid: rspMsgid || msgid, resolve, reject };
       this.pending.push(p);
-      this.sock.write(encodeFrame(msgid, obj));
+      this.sock.write(resEncode(msgid, obj));
       setTimeout(() => {
         const i = this.pending.indexOf(p);
         if (i >= 0) { this.pending.splice(i, 1); reject(new Error('request timeout msgid=' + msgid)); }

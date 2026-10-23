@@ -8,6 +8,14 @@ if (!window.wetalk) {
 }
 const { MSG_IDS, RES_IDS, ERROR_CODES } = window.wetalk;
 
+/* 输入诊断：捕获阶段的鼠标/焦点/键盘事件都会打到主进程日志（排查"无法输入"用） */
+document.addEventListener('mousedown', (e) =>
+  console.log('[diag] mousedown ->', e.target.id || e.target.className || e.target.tagName), true);
+document.addEventListener('focusin', (e) =>
+  console.log('[diag] focusin ->', e.target.id || e.target.tagName), true);
+document.addEventListener('keydown', (e) =>
+  console.log('[diag] keydown ->', e.key, 'on', e.target.id || e.target.tagName), true);
+
 const $ = (id) => document.getElementById(id);
 const errText = (r) => (r && r.detail) ? r.detail : (ERROR_CODES[r && r.error] || `错误码 ${r && r.error}`);
 const isImgName = (s) => /\.(png|jpe?g|gif|bmp|webp)$/i.test(String(s || ''));
@@ -23,6 +31,7 @@ const state = {
   loadingHistory: false,
   imgCache: {},        // 图片名 -> dataURL
   unread: {},          // uid -> 未读数
+  readUpTo: {},        // uid -> 已上报已读的 last_message_id
   pane: 'chats',       // 中栏当前 tab
 };
 
@@ -38,12 +47,25 @@ function avatarEl(uid, name, cls = '') {
 const $avatar = { me: null, peer: null };
 
 /* ---------------- 视图切换 ---------------- */
-function showAuth() { $('view-auth').classList.remove('hidden'); $('view-main').classList.add('hidden'); }
+// Windows/Electron 已知坑：焦点元素带着中文输入法组合态被隐藏（display:none）后，
+// TSF 上下文卡死，页面里所有元素都无法再获得焦点。切视图前必须先摘焦点。
+function releaseFocus() {
+  const el = document.activeElement;
+  if (el && el !== document.body && typeof el.blur === 'function') el.blur();
+}
+function showAuth() {
+  releaseFocus();
+  if (window.wetalk.setSize) { try { window.wetalk.setSize(460, 680); } catch (_) {} } // 登录页小窗
+  $('view-auth').classList.remove('hidden'); $('view-main').classList.add('hidden');
+}
 function showMain() {
+  releaseFocus();
+  if (window.wetalk.setSize) { try { window.wetalk.setSize(1060, 700); } catch (_) {} } // 主界面大窗
   $('view-auth').classList.add('hidden'); $('view-main').classList.remove('hidden');
   $avatar.me = avatarEl(state.self.uid, state.self.nick || state.self.name);
   $('me-avatar').replaceWith($avatar.me);
   $avatar.me.id = 'me-avatar';
+  $avatar.me.onclick = openProfile;
   renderSessions(); renderApplies(); renderContacts(); updateBadges();
 }
 
@@ -116,11 +138,14 @@ window.wetalk.onFrame(({ msgid, obj }) => {
     case MSG_IDS.ID_NOTIFY_AUTH_FRIEND_REQ: onNotifyAuth(obj); break;
     case MSG_IDS.ID_LOAD_CHAT_MSG_RSP: onHistoryRsp(obj); break;
     case MSG_IDS.ID_IMG_CHAT_MSG_RSP: onImgRsp(obj); break;
+    case MSG_IDS.ID_DELETE_FRIEND_RSP: onDeleteFriendRsp(obj); break;
+    case MSG_IDS.ID_NOTIFY_DEL_FRIEND_REQ: onNotifyDelFriend(obj); break;
+    case MSG_IDS.ID_READ_MSG_RSP: break; // 已读上报回包忽略
+    case MSG_IDS.ID_NOTIFY_READ_MSG_REQ: onNotifyRead(obj); break;
     case MSG_IDS.ID_HEARTBEAT_RSP: break; // 心跳回包忽略
     default: console.log('unhandled msgid', msgid, obj);
   }
 });
-window.wetalk.onClosed(({ reason }) => { alert(`连接断开（${reason}），请重新登录`); location.reload(); });
 window.wetalk.onError(({ message }) => console.warn('tcp error:', message));
 
 function friendName(uid) {
@@ -266,8 +291,69 @@ function openChat(uid) {
   $('chat-peer-avatar').replaceWith(pa);
   $('btn-send').disabled = false;
   $('btn-img').disabled = false;
+  $('btn-del-friend').classList.toggle('hidden', !state.friends.some((f) => f.uid === uid));
   renderSessions(); renderContacts(); updateBadges(); renderMsgs();
   loadHistory(uid);
+  reportRead(uid); // 打开会话即上报已读（历史加载后再报一次更精确）
+}
+
+/* ---------------- 已读上报（1046） ---------------- */
+function reportRead(uid) {
+  if (!state.self || !state.threads[uid]) return; // thread 未建立无从上报
+  const arr = state.chats[uid] || [];
+  let maxId = 0;
+  for (const m of arr) if (!m.mine && m.msg_id && m.msg_id > maxId) maxId = m.msg_id;
+  if (!maxId || maxId <= (state.readUpTo[uid] || 0)) return;
+  state.readUpTo[uid] = maxId;
+  window.wetalk.tcpSend(MSG_IDS.ID_READ_MSG_REQ, {
+    uid: state.self.uid, touid: uid, thread_id: state.threads[uid], last_message_id: maxId,
+  });
+}
+
+function onNotifyRead(obj) { // 1048 对方读了我的消息
+  const uid = obj.uid; // 已读的人 = 聊天对象
+  const arr = state.chats[uid] || [];
+  let changed = false;
+  for (const m of arr) {
+    if (m.mine && m.msg_id && m.msg_id <= obj.last_message_id && !m.read) { m.read = true; changed = true; }
+  }
+  if (changed && state.active === uid) renderMsgs();
+}
+
+/* ---------------- 删除好友（1043/1045） ---------------- */
+$('btn-del-friend').onclick = () => {
+  const uid = state.active;
+  if (!uid) return;
+  if (!confirm(`确定删除好友 ${friendName(uid)} 吗？聊天记录将不再互通。`)) return;
+  window.wetalk.tcpSend(MSG_IDS.ID_DELETE_FRIEND_REQ, { uid: state.self.uid, touid: uid });
+};
+
+function removeFriendLocal(uid) {
+  state.friends = state.friends.filter((f) => f.uid !== uid);
+  delete state.chats[uid]; delete state.threads[uid];
+  delete state.history[uid]; delete state.unread[uid]; delete state.readUpTo[uid];
+  if (state.active === uid) {
+    state.active = null;
+    $('chat-peer-name').textContent = '选择一个好友开始聊天';
+    $('chat-peer-uid').textContent = '';
+    $('btn-send').disabled = true; $('btn-img').disabled = true;
+    $('btn-del-friend').classList.add('hidden');
+    const pa = avatarEl(0, '?', 'sm'); pa.id = 'chat-peer-avatar';
+    $('chat-peer-avatar').replaceWith(pa);
+    renderMsgs();
+  }
+  renderSessions(); renderContacts(); updateBadges();
+}
+
+function onDeleteFriendRsp(obj) { // 1044 我删别人成功
+  if (obj.error !== 0) { alert('删除好友失败：' + errText(obj)); return; }
+  removeFriendLocal(obj.touid);
+}
+
+function onNotifyDelFriend(obj) { // 1045 我被删了（obj.uid = 删人方）
+  const name = friendName(obj.uid);
+  removeFriendLocal(obj.uid);
+  alert(name + ' 已将你从好友列表移除');
 }
 
 /* ---------------- 历史消息（1029，游标分页） ---------------- */
@@ -293,12 +379,14 @@ function onHistoryRsp(obj) { // {error, thread_id, last_message_id, load_more, c
     content: c.msg_content,
     time: fmtTime(c.chat_time),
     unique_id: String(c.unique_id || ''),
+    msg_id: c.msg_id,
+    read: c.sender === state.self.uid && Number(c.status) === 2,
   })).reverse();
   arr.unshift(...older);
   h.last_message_id = obj.last_message_id;
   h.load_more = !!obj.load_more;
   h.loaded = true;
-  if (state.active === uidNum) renderMsgs(true);
+  if (state.active === uidNum) { renderMsgs(true); reportRead(uidNum); }
   for (const m of older) if (m.type === 'img' && !state.imgCache[m.content]) fetchImage(m.content);
 }
 
@@ -345,10 +433,11 @@ function renderMsgs(keepScrollTop) {
       else { img.className = 'loading'; img.alt = m.content; fetchImage(m.content); }
       div.appendChild(img);
       const meta = document.createElement('span'); meta.className = 'meta';
-      meta.textContent = `${m.content} ${m.time || ''}`;
+      meta.textContent = `${m.content} ${m.time || ''}${m.mine && !m.pending ? (m.read ? ' · 已读' : ' · 未读') : ''}`;
       div.appendChild(meta);
     } else {
-      div.innerHTML = `${escapeHtml(m.content)}<span class="meta">${m.time}${m.pending ? ' · 发送中' : ''}</span>`;
+      const tag = m.pending ? ' · 发送中' : (m.mine ? (m.read ? ' · 已读' : ' · 未读') : '');
+      div.innerHTML = `${escapeHtml(m.content)}<span class="meta">${m.time}${tag}</span>`;
     }
     body.appendChild(div);
     row.appendChild(body);
@@ -448,7 +537,7 @@ function onTextRsp(obj) { // 1018 我发的消息的回执：更新 pending 气�
   const arr = state.chats[obj.touid] || [];
   for (const cd of obj.chat_datas || []) {
     const m = arr.find((x) => x.unique_id === cd.unique_id);
-    if (m) { m.pending = false; m.time = fmtTime(cd.chat_time) || m.time; }
+    if (m) { m.pending = false; m.msg_id = cd.message_id; m.time = fmtTime(cd.chat_time) || m.time; }
   }
   if (state.active === obj.touid) renderMsgs();
   renderSessions();
@@ -460,8 +549,9 @@ function onTextNotify(obj) { // 1019 收到对方消息
     state.threads[uid] = obj.thread_id || state.threads[uid] || 0;
   }
   for (const cd of obj.chat_datas || []) {
-    pushMsg(uid, { type: 'text', mine: false, content: cd.content, time: fmtTime(cd.chat_time), unique_id: cd.unique_id });
+    pushMsg(uid, { type: 'text', mine: false, content: cd.content, time: fmtTime(cd.chat_time), unique_id: cd.unique_id, msg_id: cd.message_id });
   }
+  if (state.active === uid) reportRead(uid); // 正在看这个人的聊天，立即上报已读
 }
 
 function onNotifyApply(obj) { // 1011 收到好友申请
@@ -487,10 +577,86 @@ $('btn-logout').onclick = async () => {
   // 清空会话状态，回到登录页
   state.self = null; state.friends = []; state.applies = [];
   state.threads = {}; state.chats = {}; state.history = {};
-  state.unread = {}; state.imgCache = {}; state.active = null;
+  state.unread = {}; state.imgCache = {}; state.active = null; state.readUpTo = {};
   state.loadingHistory = false; state.pane = 'chats';
   $('login-email').value = ''; $('login-passwd').value = '';
   msg('login-msg', '已退出，请重新登录', true);
   switchPane('chats');
   showAuth();
+  // 主进程级焦点修复兜底（窗口失活/输入法卡死时把前台焦点要回来）
+  try { await window.wetalk.refocus(); } catch (_) {}
+  try { $('login-email').focus(); } catch (_) {}
 };
+
+// 断线处理：原地重置回登录页（不 reload，避免初始化/焦点问题）
+window.wetalk.onClosed(async ({ reason }) => {
+  console.log('[conn] closed:', reason);
+  try { await window.wetalk.resClose(); } catch (_) {}
+  state.self = null; state.friends = []; state.applies = [];
+  state.threads = {}; state.chats = {}; state.history = {};
+  state.unread = {}; state.imgCache = {}; state.active = null; state.readUpTo = {};
+  state.loadingHistory = false; state.pane = 'chats';
+  $('login-email').value = ''; $('login-passwd').value = '';
+  msg('login-msg', `连接断开（${reason}），请重新登录`);
+  switchPane('chats');
+  showAuth();
+});
+
+// 启动时按登录页尺寸显示窗口
+if (window.wetalk.setSize) { try { window.wetalk.setSize(460, 680); } catch (_) {} }
+
+/* ---------------- 个人资料设置 ---------------- */
+function openProfile() {
+  $('profile-nick').value = state.self.nick || state.self.name || '';
+  $('profile-desc').value = state.self.desc || '';
+  $('profile-msg').textContent = '';
+  $('profile-modal').classList.remove('hidden');
+}
+$('me-avatar').onclick = openProfile;
+function refreshMeAvatar() {
+  const el = avatarEl(state.self.uid, state.self.nick || state.self.name);
+  el.id = 'me-avatar'; el.classList.add('nav-me');
+  $('me-avatar').replaceWith(el);
+  $avatar.me = el;
+  el.onclick = openProfile;
+}
+$('profile-cancel').onclick = () => $('profile-modal').classList.add('hidden');
+$('profile-save').onclick = async () => {
+  const nick = $('profile-nick').value.trim();
+  const desc = $('profile-desc').value.trim();
+  if (!nick) { $('profile-msg').textContent = '昵称不能为空'; return; }
+  try {
+    const r = await window.wetalk.httpPost('/user_profile',
+      { uid: state.self.uid, token: state.self.token, nick, desc }, gateUrl());
+    if (r.error !== 0) { $('profile-msg').textContent = '保存失败：' + errText(r); return; }
+    state.self.nick = nick; state.self.desc = desc;
+    refreshMeAvatar();
+    renderContacts(); renderMsgs();
+    $('profile-modal').classList.add('hidden');
+    alert('资料已保存，下次登录全端生效');
+  } catch (err) { $('profile-msg').textContent = '保存异常：' + err.message; }
+};
+
+/* ---------------- 表情面板 ---------------- */
+const EMOJIS = ['😀','😁','😂','🤣','😊','😍','😘','😜','🤔','😐','😴','😭','😡',
+  '👍','👎','👏','🙏','💪','🤝','🫡','🥳','😎','🥺','😤','🤯',
+  '🎉','❤️','💔','🌹','🍺','⚽','🌈','☀️','🌙','⭐','🔥','💯','🚀','🍀','🎁','🐶','🐱'];
+const panel = $('emoji-panel');
+for (const e of EMOJIS) {
+  const b = document.createElement('button');
+  b.type = 'button'; b.className = 'emoji-item'; b.textContent = e;
+  b.onclick = () => {
+    const ta = $('input-box');
+    const s = ta.selectionStart ?? ta.value.length, en = ta.selectionEnd ?? ta.value.length;
+    ta.value = ta.value.slice(0, s) + e + ta.value.slice(en);
+    ta.selectionStart = ta.selectionEnd = s + e.length;
+    ta.focus();
+  };
+  panel.appendChild(b);
+}
+$('btn-emoji').onclick = (ev) => { ev.stopPropagation(); panel.classList.toggle('hidden'); };
+document.addEventListener('mousedown', (ev) => {
+  if (!panel.classList.contains('hidden') && !panel.contains(ev.target) && ev.target !== $('btn-emoji')) {
+    panel.classList.add('hidden');
+  }
+});

@@ -91,17 +91,36 @@
           <div id="chat-peer-name">选择一个好友开始聊天</div>
           <div id="chat-peer-uid" class="muted"></div>
         </div>
+        <button id="btn-del-friend" class="icon-btn danger hidden" title="删除好友">🗑</button>
       </header>
       <div id="msg-list" class="msg-list">
         <div class="system">开始你的第一次对话吧</div>
       </div>
       <div class="composer">
+        <button id="btn-emoji" class="icon-btn big" title="表情">😀</button>
         <button id="btn-img" class="icon-btn big" title="发送图片">📷</button>
         <input type="file" id="img-input" accept="image/*" class="hidden" />
         <textarea id="input-box" rows="1" placeholder="输入消息，Enter 发送（Shift+Enter 换行）"></textarea>
         <button id="btn-send" class="primary send-btn" disabled>发送</button>
+        <div id="emoji-panel" class="emoji-panel hidden"></div>
       </div>
     </section>
+  </div>
+
+  <!-- 个人资料编辑弹窗 -->
+  <div id="profile-modal" class="modal hidden">
+    <div class="modal-card">
+      <h3 class="modal-title">个人资料</h3>
+      <div class="stack">
+        <div class="field"><label>昵称</label><input id="profile-nick" maxlength="32" /></div>
+        <div class="field"><label>签名</label><input id="profile-desc" maxlength="64" placeholder="介绍一下自己" /></div>
+        <div id="profile-msg" class="msg"></div>
+        <div class="row">
+          <button id="profile-cancel" class="ghost grow">取消</button>
+          <button id="profile-save" class="primary">保存</button>
+        </div>
+      </div>
+    </div>
   </div>
 
   <script src="app.js"></script>

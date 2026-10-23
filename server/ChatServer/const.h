@@ -75,7 +75,14 @@ enum MSG_IDS {
 	ID_IMG_CHAT_MSG_RSP = 1036,       //图片聊天信息回复
 	ID_NOTIFY_IMG_CHAT_MSG_REQ = 1039, //通知用户图片聊天信息
 	ID_FILE_INFO_SYNC_REQ = 1041,      //文件信息同步请求
-	ID_FILE_INFO_SYNC_RSP = 1042       //文件信息同步回复
+	ID_FILE_INFO_SYNC_RSP = 1042,      //文件信息同步回复
+
+	ID_DELETE_FRIEND_REQ = 1043,       //删除好友请求
+	ID_DELETE_FRIEND_RSP = 1044,       //删除好友回复
+	ID_NOTIFY_DEL_FRIEND_REQ = 1045,   //通知对方被删除好友
+	ID_READ_MSG_REQ = 1046,            //消息已读上报
+	ID_READ_MSG_RSP = 1047,            //消息已读回复
+	ID_NOTIFY_READ_MSG_REQ = 1048      //通知发送方消息已读
 };
 
 #define USERIPPREFIX  "uip_"

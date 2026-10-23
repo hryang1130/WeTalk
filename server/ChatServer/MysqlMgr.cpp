@@ -87,3 +87,11 @@ bool MysqlMgr::AddChatMsg(std::shared_ptr<ChatMessage> chat_data) {
 	return _dao.AddChatMsg(chat_data);
 }
 
+bool MysqlMgr::DeleteFriend(int uid, int friend_uid) {
+	return _dao.DeleteFriend(uid, friend_uid);
+}
+
+int MysqlMgr::MarkMsgRead(int thread_id, int sender_id, int recv_id, int last_message_id) {
+	return _dao.MarkMsgRead(thread_id, sender_id, recv_id, last_message_id);
+}
+

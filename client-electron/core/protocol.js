@@ -26,6 +26,16 @@ const MSG_IDS = {
   ID_LOAD_CHAT_MSG_REQ: 1029,
   ID_LOAD_CHAT_MSG_RSP: 1030,
   ID_IMG_CHAT_MSG_REQ: 1035,
+  ID_IMG_CHAT_MSG_RSP: 1036,
+  ID_NOTIFY_IMG_CHAT_MSG_REQ: 1039,
+  ID_FILE_INFO_SYNC_REQ: 1041,
+  ID_FILE_INFO_SYNC_RSP: 1042,
+  ID_DELETE_FRIEND_REQ: 1043,      // {uid, touid} 删除好友
+  ID_DELETE_FRIEND_RSP: 1044,
+  ID_NOTIFY_DEL_FRIEND_REQ: 1045,  // {uid, touid} 被通知删除（uid=删人方）
+  ID_READ_MSG_REQ: 1046,           // {uid, touid, thread_id, last_message_id} 已读上报
+  ID_READ_MSG_RSP: 1047,
+  ID_NOTIFY_READ_MSG_REQ: 1048,    // {uid, touid, thread_id, last_message_id} 已读通知（uid=已读方）
 };
 
 // ResourceServer 编号空间（server/ResourceServer/const.h，与 ChatServer 数值不冲突）

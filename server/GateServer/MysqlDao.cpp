@@ -220,6 +220,32 @@ bool MysqlDao::UpdatePwd(const std::string& name, const std::string& newpwd) {
 	}
 }
 
+bool MysqlDao::UpdateUserProfile(int uid, const std::string& nick, const std::string& desc) {
+	auto con = pool_->getConnection();
+	if (con == nullptr) {
+		return false;
+	}
+	try {
+		// `desc` is a MySQL reserved word, must be quoted
+		std::unique_ptr<sql::PreparedStatement> pstmt(
+			con->_con->prepareStatement("UPDATE user SET nick = ?, `desc` = ? WHERE uid = ?"));
+		pstmt->setString(1, nick);
+		pstmt->setString(2, desc);
+		pstmt->setInt(3, uid);
+		int updateCount = pstmt->executeUpdate();
+		std::cout << "UpdateUserProfile rows: " << updateCount << std::endl;
+		pool_->returnConnection(std::move(con));
+		return true;
+	}
+	catch (sql::SQLException& e) {
+		pool_->returnConnection(std::move(con));
+		std::cerr << "SQLException: " << e.what();
+		std::cerr << " (MySQL error code: " << e.getErrorCode();
+		std::cerr << ", SQLState: " << e.getSQLState() << " )" << std::endl;
+		return false;
+	}
+}
+
 bool MysqlDao::CheckPwd(const std::string& email, const std::string& pwd, UserInfo& userInfo) {
 	auto con = pool_->getConnection();
 	if (con == nullptr) {

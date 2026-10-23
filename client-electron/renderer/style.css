@@ -10,7 +10,7 @@ body { font-family:"Segoe UI","Microsoft YaHei",sans-serif; background:var(--bg)
 .hidden { display:none !important; }
 .muted { color:var(--muted); font-size:12px; }
 button { cursor:pointer; border:none; border-radius:8px; font-size:14px; font-family:inherit; }
-input,textarea { border:1px solid var(--line); border-radius:8px; padding:10px 12px; font-size:14px; width:100%; background:#fff; outline:none; font-family:inherit; }
+input,textarea { border:1px solid var(--line); border-radius:8px; padding:10px 12px; font-size:14px; width:100%; background:#fff; outline:none; font-family:inherit; user-select:text; -webkit-user-select:text; }
 input:focus,textarea:focus { border-color:var(--brand); box-shadow:0 0 0 3px rgba(125,40,52,.08); }
 
 /* ---------- 头像 ---------- */
@@ -72,6 +72,23 @@ button.ghost { background:#f4f5f8; color:var(--brand); padding:10px 14px; white-
   display:flex; align-items:center; justify-content:center; font-size:14px; }
 .icon-btn:hover { border-color:var(--brand); }
 .icon-btn.big { width:40px; height:40px; font-size:18px; }
+.icon-btn.danger { color:#c0392b; }
+.icon-btn.danger:hover { border-color:#c0392b; background:#fdf0ee; }
+
+/* 表情面板 */
+.composer { position:relative; }
+.emoji-panel { position:absolute; bottom:64px; left:8px; width:264px; max-height:200px; overflow-y:auto;
+  background:var(--card); border:1px solid var(--line); border-radius:12px; padding:8px;
+  display:grid; grid-template-columns:repeat(7,1fr); gap:2px; box-shadow:0 8px 30px rgba(0,0,0,.15); z-index:30; }
+.emoji-item { background:transparent; font-size:20px; padding:4px; border-radius:8px; }
+.emoji-item:hover { background:#f0f2f5; }
+
+/* 弹窗 */
+.modal { position:fixed; inset:0; background:rgba(0,0,0,.35); display:flex; align-items:center;
+  justify-content:center; z-index:50; }
+.modal-card { width:360px; background:var(--card); border-radius:14px; padding:22px 24px 18px;
+  box-shadow:0 20px 60px rgba(0,0,0,.3); }
+.modal-title { font-size:16px; font-weight:700; margin-bottom:14px; color:var(--text); }
 .search-result { margin:8px 14px 0; background:#fff; border:1px solid var(--line); border-radius:10px;
   padding:10px; font-size:13px; box-shadow:0 2px 8px rgba(0,0,0,.05); }
 .search-result .row-line { display:flex; align-items:center; gap:8px; margin-bottom:6px; }

@@ -32,6 +32,8 @@ public:
 	std::shared_ptr<PageResult> LoadChatMsg(int threadId, int lastId, int pageSize);
 	bool AddChatMsg(std::vector<std::shared_ptr<ChatMessage>>& chat_datas);
 	bool AddChatMsg(std::shared_ptr<ChatMessage> chat_data);
+	bool DeleteFriend(int uid, int friend_uid);
+	int MarkMsgRead(int thread_id, int sender_id, int recv_id, int last_message_id);
 private:
 	MysqlMgr();
 	MysqlDao  _dao;
