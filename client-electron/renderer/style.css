@@ -490,6 +490,30 @@ button.ghost:hover { background: #eee9e5; color: var(--ink); }
 .bubble-img { padding: 0 !important; overflow: hidden; background: rgba(28, 26, 24, .04) !important; border-color: var(--line) !important; }
 .bubble-img img { border-radius: 13px; }
 
+/* 文件气泡：图标 + 文件名/大小 + 下载按钮 */
+.bubble-file {
+  display: flex; align-items: center; gap: 10px;
+  min-width: 200px; max-width: 300px;
+  padding: 10px 12px !important;
+}
+.bubble-file .file-ic { width: 30px; height: 30px; flex: none; stroke: currentColor; opacity: .75; }
+.bubble-file .file-info { min-width: 0; flex: 1; }
+.bubble-file .file-name {
+  font-size: 13px; font-weight: 600; color: inherit;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.bubble-file .file-size { font-size: 11px; opacity: .65; margin-top: 2px; }
+.bubble-file .file-dl { flex: none; }
+
+/* 断线重连横幅：贴在主界面顶部，琥珀色提示条 */
+.conn-banner {
+  position: fixed; top: 0; left: 0; right: 0; z-index: 300;
+  padding: 7px 16px;
+  background: #f4b73f; color: #3c2c08;
+  font-size: 12.5px; font-weight: 600; text-align: center;
+  box-shadow: 0 1px 6px rgba(28, 26, 24, .18);
+}
+
 .bubble img {
   display: block;
   max-width: 268px; max-height: 220px;

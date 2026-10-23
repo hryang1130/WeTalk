@@ -8,6 +8,8 @@
     "mock": "node mock-server.js",
     "shot": "electron tools/shot.js",
     "test:cross": "node test-img-cross.js",
+    "test:offline": "node test-offline.js",
+    "test:file": "node test-file.js",
     "dist": "electron-builder --win nsis"
   },
   "build": {

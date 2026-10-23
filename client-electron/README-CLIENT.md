@@ -115,11 +115,15 @@ client-electron/
 │   └── app.js         # 渲染层逻辑（只通过 window.wetalk 与主进程通信）
 ├── tools/             # 开发工具（不进打包）
 │   ├── shot.js        # npm run shot：假数据渲染真实页面并截图到 __ui/
+│   ├── cdp-eval.js    # 连 Electron CDP 端口执行 JS（自动化验证 UI 状态用）
+│   ├── send-one.js    # 以某账号登录并发一条文本给目标 uid（给 GUI 窗口喂实时消息）
 │   ├── preload-stub.js
 │   └── seed-main.js
 ├── test-e2e.js        # 端到端联调脚本（见下），node test-e2e.js [email] [passwd] [peer_uid]
 ├── test-img-cross.js  # 跨用户图片全链路（A 发→B 收 1039→B 下载→已读回执）
 ├── test-img-download.js # 跨用户下载 + token 反例
+├── test-offline.js    # 离线消息：A 发→B 重登→unread_list + 历史含离线消息
+├── test-file.js       # 文件消息：1003 上传→1035(fname/fsize)→历史 JSON→下载 md5 比对
 ├── test-profile.js    # /user_profile 端点联调脚本
 └── mock-server.js     # 本地演示服务（8080/8090/9090），无需 Docker 即可体验 UI
 ```
@@ -133,8 +137,21 @@ node test-e2e.js        # HTTP登录→TCP认证→表情文本(1017)→图片�
                         # →历史(1029)→图片下载字节比对→已读上报(1046)，全链路 ALL PASS 输出
 node test-img-download.js  # 跨用户图片下载：xm 上传 → hao 下载 → 字节一致（+ 伪造 token 应被拒）
 node test-img-cross.js  # 复刻真实场景：A 上传→A 发 1035→B 在线收 1039→B 下载比对→B 报已读→A 收 1048
+node test-offline.js    # 离线消息：B 不在线 A 发消息 → B 登录收 unread_list + 历史含该消息
+node test-file.js       # 文件消息全链路（npm run test:file）
 node test-profile.js    # /user_profile：错误 token 拒绝 + 正常保存
 ```
+
+## 断线自动重连
+
+主进程在意外断线（网络错误/服务端断开）时按 1s→2s→4s→8s→16s→30s 指数退避自动重连（最多 8 次），
+重连成功后自动重发 1005 认证；渲染层只在顶部显示琥珀色横幅，**不踢回登录页**，恢复后自动刷新
+好友列表/未读数并补拉历史。要点：
+
+- 主动断开（登出、手动重连、退出程序）会作废重连循环（代际号 `reconnectGen`）；
+- 被丢弃的旧 socket 打了 `_wetalk_discard` 标记，其 close/error 事件不再触发重连（防止滚雪球）；
+- 重连期间 `tcp:closed` 不会下发，渲染层只听 `tcp:reconnecting`；
+- 验证方法：登录后 `docker restart wetalk-chat1 wetalk-chat2`，观察日志 `[reconnect]` 与横幅自动消失。
 
 > 注意：脚本使用真实测试数据，不要把 `touid` 传成需要保留好友关系的账号后调用删除流程。
 

@@ -981,6 +981,11 @@ void LogicSystem::DealChatImgMsg(std::shared_ptr<CSession> session,
 	auto unique_id = root["unique_id"].asString();
 	auto chat_time = root["chat_time"].asString();
 	auto status = root["status"].asInt();
+	// 文件消息扩展字段（图片消息不带）：原始文件名 + 字节大小。
+	// 落库 content 若带 fname 则包成 JSON {n:存储名, f:原始文件名, s:大小}，
+	// 转发/历史都原样透传 content，客户端按首字符 '{' 解析；纯存储名仍走图片/文本老逻辑。
+	auto fname = root["fname"].asString();
+	auto fsize = root["fsize"].asInt64();
 
 	Json::Value  rtvalue;
 	rtvalue["error"] = ErrorCodes::Success;
@@ -1011,6 +1016,15 @@ void LogicSystem::DealChatImgMsg(std::shared_ptr<CSession> session,
 	chat_msg->unique_id = unique_id;
 	chat_msg->thread_id = thread_id;
 	chat_msg->content = unique_name;
+	if (!fname.empty()) {
+		// 文件消息：content 存 JSON 元数据（FastWriter 无换行），历史/转发原样透传
+		Json::Value meta;
+		meta["n"] = unique_name;
+		meta["f"] = fname;
+		if (fsize > 0) meta["s"] = (Json::Int64)fsize;
+		Json::FastWriter fw;
+		chat_msg->content = fw.write(meta);
+	}
 	chat_msg->status = MsgStatus::UN_UPLOAD;
 
 

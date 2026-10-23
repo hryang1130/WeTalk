@@ -19,6 +19,31 @@ document.addEventListener('keydown', (e) =>
 const $ = (id) => document.getElementById(id);
 const errText = (r) => (r && r.detail) ? r.detail : (ERROR_CODES[r && r.error] || `错误码 ${r && r.error}`);
 const isImgName = (s) => /\.(png|jpe?g|gif|bmp|webp)$/i.test(String(s || ''));
+// ResourceServer 的存储名 = 内容 md5(32位hex) + 扩展名；历史消息里靠它区分"文件消息"和"普通文本"
+const isStoreName = (s) => /^[0-9a-f]{32}\.\w{1,8}$/i.test(String(s || ''));
+// 文件消息的 content 是服务端包的 JSON {n:存储名, f:原始文件名, s:字节数}；图片/旧消息是纯存储名
+function parseMsgContent(content) {
+  if (typeof content === 'string' && content.charAt(0) === '{') {
+    try {
+      const o = JSON.parse(content);
+      if (o && o.n) return { store: o.n, fname: o.f || o.n, fsize: Number(o.s) || 0 };
+    } catch (_) {}
+  }
+  return { store: String(content), fname: String(content), fsize: 0 };
+}
+function classifyContent(content) { // -> {type, store, fname, fsize}
+  const p = parseMsgContent(content);
+  const type = isImgName(p.store) ? 'img' : (isStoreName(p.store) ? 'file' : 'text');
+  return { type, ...p };
+}
+function fmtSize(n) {
+  n = Number(n);
+  if (!n || n <= 0) return '';
+  const u = ['B', 'KB', 'MB', 'GB'];
+  let i = 0, v = n;
+  while (v >= 1024 && i < u.length - 1) { v /= 1024; i++; }
+  return (i === 0 ? v : v.toFixed(1)) + ' ' + u[i];
+}
 
 const state = {
   self: null,          // {uid, name, nick, icon, email, token, reshost, resport}
@@ -73,7 +98,21 @@ function showMain() {
 }
 
 /* ---------------- 登录 / 注册 ---------------- */
-const gateUrl = () => ($('pane-title') ? '' : '') || ($('gate-url').value.trim().replace(/\/+$/, '') || 'http://127.0.0.1:8080');
+// 服务器地址记忆：记住上次用的 Gate 地址，下次打开自动填充（两个表单共用一份）
+const GATE_URL_KEY = 'wetalk.gateUrl';
+try {
+  const savedGate = localStorage.getItem(GATE_URL_KEY);
+  if (savedGate) { $('gate-url').value = savedGate; $('gate-url-reg').value = savedGate; }
+} catch (_) {}
+function rememberGateUrl() {
+  const v = ($('gate-url').value.trim() || $('gate-url-reg').value.trim()).replace(/\/+$/, '');
+  if (v) { try { localStorage.setItem(GATE_URL_KEY, v); } catch (_) {} }
+}
+// 注册表单展开时读它自己的地址框（两框都可以改，互相同步到存储）
+const gateUrl = () =>
+  (($('form-register') && !$('form-register').classList.contains('hidden')
+    ? ($('gate-url-reg').value.trim() || $('gate-url').value.trim())
+    : $('gate-url').value.trim()).replace(/\/+$/, '') || 'http://127.0.0.1:8080');
 
 $('tab-login').onclick = () => {
   $('tab-login').classList.add('active'); $('tab-register').classList.remove('active');
@@ -106,7 +145,7 @@ $('form-register').onsubmit = async (e) => {
       varifycode: $('reg-varifycode').value.trim(),
     };
     const r = await window.wetalk.httpPost('/user_register', body, gateUrl());
-    if (r.error === 0) { msg('reg-msg', `注册成功，uid=${r.uid}，请切换到登录`, true); $('tab-login').click(); }
+    if (r.error === 0) { rememberGateUrl(); msg('reg-msg', `注册成功，uid=${r.uid}，请切换到登录`, true); $('tab-login').click(); }
     else msg('reg-msg', `注册失败：${errText(r)}`);
   } catch (err) { msg('reg-msg', '注册异常：' + err.message); }
 };
@@ -119,6 +158,7 @@ $('form-login').onsubmit = async (e) => {
     if (!email || !passwd) { msg('login-msg', '请先填写邮箱和密码'); return; }
     const r = await window.wetalk.httpPost('/user_login', { email, passwd }, gateUrl());
     if (r.error !== 0) return msg('login-msg', `登录失败：${errText(r)}`);
+    rememberGateUrl();
     // HTTP 登录返回：{uid, token, chathost, chatport, reshost, resport}
     await window.wetalk.tcpConnect({ host: r.chathost, port: Number(r.chatport), uid: r.uid, token: r.token });
     state.self = { uid: r.uid, email, token: r.token, reshost: r.reshost, resport: r.resport };
@@ -154,19 +194,57 @@ window.wetalk.onFrame(({ msgid, obj }) => {
 });
 window.wetalk.onError(({ message }) => console.warn('tcp error:', message));
 
+/* ---------------- 断线自动重连（主进程指数退避，这里只管横幅与恢复） ---------------- */
+window.wetalk.onReconnecting(({ attempt, max }) => {
+  console.log('[conn] reconnecting, attempt', attempt, '/', max);
+  // ResourceServer 数据面多半也断了，复位连接标记，下次传图/下载时重连
+  state.imgCache._connected = false;
+  const b = $('conn-banner');
+  b.classList.remove('hidden');
+  b.textContent = `连接已断开，正在自动重连…（第 ${attempt}/${max} 次）`;
+  $('btn-send').disabled = true;
+  $('btn-img').disabled = true; $('btn-file').disabled = true;
+});
+function hideReconnectBanner() {
+  $('conn-banner').classList.add('hidden');
+  if (state.active) { $('btn-img').disabled = false; $('btn-file').disabled = false; refreshComposer(); }
+}
+
 function friendName(uid) {
   const f = state.friends.find((x) => x.uid === uid);
   return (f && (f.nick || f.name)) || String(uid);
 }
 
 function onLoginRsp(obj) {
+  // 已在主界面又收到 LOGIN_RSP = 断线重连后的重新认证（主进程自动重连成功）
+  const relogin = !!state.self && !$('view-main').classList.contains('hidden');
+  if (relogin && obj.error !== 0) {
+    // token 失效等：重连救不回来，放弃并回登录页
+    hideReconnectBanner();
+    window.wetalk.tcpClose().catch(() => {});
+    msg('login-msg', `重连认证失败（${errText(obj)}），请重新登录`);
+    showAuth();
+    return;
+  }
   if (obj.error !== 0) { msg('login-msg', `TCP 认证失败：${errText(obj)}`); return; }
   state.self = { ...state.self, name: obj.name, nick: obj.nick, icon: obj.icon };
   state.friends = obj.friend_list || [];
   state.applies = obj.apply_list || [];
-  // 离线期间的未读消息：服务端登录时下发 {uid, count}，点亮会话/导航红点
+  // 离线期间的未读消息：服务端登录时下发 {uid, count}，点亮会话/导航红点。
+  // 注意是"绝对量覆盖"而不是累加：服务端按 status=0 汇总，重连场景下累加会重复计数
   for (const u of obj.unread_list || []) {
-    state.unread[u.uid] = (state.unread[u.uid] || 0) + Number(u.count || 0);
+    state.unread[u.uid] = Number(u.count || 0);
+  }
+  if (relogin) {
+    // 重连成功：原地恢复，不回登录页。补拉有未读会话的历史（断线期间错过的消息）
+    hideReconnectBanner();
+    renderSessions(); renderApplies(); renderContacts(); updateBadges();
+    if (state.active) { renderMsgs(); reportRead(state.active); }
+    for (const uidStr of Object.keys(state.unread)) {
+      const uid = Number(uidStr);
+      if (state.friends.some((f) => f.uid === uid)) loadHistory(uid);
+    }
+    return;
   }
   msg('login-msg', '登录成功', true);
   showMain();
@@ -213,7 +291,9 @@ function renderSessions() {
     const msgs = state.chats[uid] || [];
     const last = msgs[msgs.length - 1];
     const preview = last
-      ? (last.type === 'img' ? (last.mine ? '我：图片' : '[图片]') : (last.mine ? '我：' : '') + last.content)
+      ? (last.type === 'img' ? (last.mine ? '我：图片' : '[图片]')
+        : last.type === 'file' ? (last.mine ? '我：[文件] ' : '[文件] ') + (last.fname || '')
+        : (last.mine ? '我：' : '') + last.content)
       : '开始聊天';
     main.innerHTML = `<div class="li-name">${escapeHtml(friendName(uid))}</div>
       <div class="li-preview">${escapeHtml(preview)}</div>`;
@@ -307,6 +387,7 @@ function openChat(uid) {
   const pa = avatarEl(uid, friendName(uid), 'sm'); pa.id = 'chat-peer-avatar';
   $('chat-peer-avatar').replaceWith(pa);
   $('btn-img').disabled = false;
+  $('btn-file').disabled = false;
   $('btn-del-friend').classList.toggle('hidden', !state.friends.some((f) => f.uid === uid));
   refreshComposer();
   renderSessions(); renderContacts(); updateBadges(); renderMsgs();
@@ -343,8 +424,10 @@ function onImgNotify(obj) { // 1039 收到对方图片消息（消息体格式�
     state.threads[uid] = obj.thread_id || state.threads[uid] || 0;
   }
   for (const cd of obj.chat_datas || []) {
-    pushMsg(uid, { type: 'img', mine: false, content: cd.content, time: fmtTime(cd.chat_time), unique_id: cd.unique_id, msg_id: cd.message_id });
-    fetchImage(cd.content); // 主动下载缩略图
+    const k = classifyContent(cd.content);
+    pushMsg(uid, { type: k.type, mine: false, content: k.store, fname: k.fname, fsize: k.fsize,
+      time: fmtTime(cd.chat_time), unique_id: cd.unique_id, msg_id: cd.message_id });
+    if (k.type === 'img') fetchImage(cd.content); // 主动下载图片；文件按需点"下载"
   }
   if (state.active === uid) reportRead(uid); // 正在看，立即上报已读
 }
@@ -365,7 +448,7 @@ function removeFriendLocal(uid) {
     state.active = null;
     $('chat-peer-name').textContent = '选择一个好友开始聊天';
     $('chat-peer-uid').textContent = '';
-    $('btn-send').disabled = true; $('btn-img').disabled = true;
+    $('btn-send').disabled = true; $('btn-img').disabled = true; $('btn-file').disabled = true;
     $('btn-del-friend').classList.add('hidden');
     const pa = avatarEl(0, '?', 'sm'); pa.id = 'chat-peer-avatar';
     $('chat-peer-avatar').replaceWith(pa);
@@ -408,16 +491,21 @@ function onHistoryRsp(obj) { // {error, thread_id, last_message_id, load_more, c
   if (obj.thread_id) state.threads[uidNum] = obj.thread_id; // 回填线程映射
   const h = state.history[uidNum] || (state.history[uidNum] = {});
   const arr = state.chats[uidNum] || (state.chats[uidNum] = []);
-  const older = (obj.chat_datas || []).map((c) => ({
-    type: isImgName(c.msg_content) ? 'img' : 'text',
-    mine: c.sender === state.self.uid,
-    content: c.msg_content,
-    time: fmtTime(c.chat_time),
-    ts: c.chat_time ? Number(c.chat_time) * (Number(c.chat_time) > 1e12 ? 1 : 1000) : 0,
-    unique_id: String(c.unique_id || ''),
-    msg_id: c.msg_id,
-    read: c.sender === state.self.uid && Number(c.status) === 2,
-  })).reverse();
+  const older = (obj.chat_datas || []).map((c) => {
+    const k = classifyContent(c.msg_content);
+    return {
+      type: k.type,
+      mine: c.sender === state.self.uid,
+      content: k.store,
+      fname: k.fname,
+      fsize: k.fsize,
+      time: fmtTime(c.chat_time),
+      ts: c.chat_time ? Number(c.chat_time) * (Number(c.chat_time) > 1e12 ? 1 : 1000) : 0,
+      unique_id: String(c.unique_id || ''),
+      msg_id: c.msg_id,
+      read: c.sender === state.self.uid && Number(c.status) === 2,
+    };
+  }).reverse();
   arr.unshift(...older);
   h.last_message_id = obj.last_message_id;
   h.load_more = !!obj.load_more;
@@ -534,6 +622,22 @@ function renderMsgs(keepScrollTop) {
         fetchImage(m.content); // 已在下载中会直接 return
       }
       div.title = m.content; // 悬停可看真实文件名，气泡里不摆 md5
+    } else if (m.type === 'file') {
+      // 文件气泡：图标 + 原始文件名/大小 + 下载按钮
+      div.classList.add('bubble-file');
+      div.innerHTML =
+        '<svg class="icon-svg file-ic" viewBox="0 0 24 24">' +
+        '<path d="M13.5 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8.5L13.5 3z"/>' +
+        '<path d="M13.5 3v5.5H19"/></svg>' +
+        `<div class="file-info"><div class="file-name">${escapeHtml(m.fname || m.content)}</div>` +
+        `<div class="file-size">${escapeHtml(fmtSize(m.fsize) || '文件')}</div></div>`;
+      const btn = document.createElement('button');
+      btn.className = 'tiny file-dl';
+      btn.textContent = m._saving ? '下载中…' : '下载';
+      btn.disabled = !!m._saving;
+      btn.onclick = (ev) => { ev.stopPropagation(); downloadFile(m); };
+      div.appendChild(btn);
+      div.title = m.content;
     } else {
       div.textContent = m.content;
     }
@@ -591,9 +695,16 @@ function refreshComposer() {
 $('input-box').addEventListener('input', refreshComposer);
 
 /* ---------------- 图片消息 ---------------- */
+let resConnecting = null; // res:connect 的在途 Promise（并发调用会让第一个永远挂起，必须合并）
 async function ensureRes() {
-  const { reshost, resport } = state.self;
-  await window.wetalk.resConnect(reshost, Number(resport) || 9090);
+  if (state.imgCache._connected) return;
+  if (!resConnecting) {
+    const { reshost, resport } = state.self;
+    resConnecting = window.wetalk.resConnect(reshost, Number(resport) || 9090)
+      .then(() => { state.imgCache._connected = true; })
+      .finally(() => { resConnecting = null; });
+  }
+  await resConnecting;
 }
 
 $('btn-img').onclick = () => $('img-input').click();
@@ -629,6 +740,52 @@ function bytesToB64(bytes) {
   const CH = 0x8000;
   for (let i = 0; i < bytes.length; i += CH) bin += String.fromCharCode.apply(null, bytes.subarray(i, i + CH));
   return btoa(bin);
+}
+
+/* ---------------- 文件消息（复用 1035 链路：上传走 1003 通用文件分片） ---------------- */
+$('btn-file').onclick = () => $('file-input').click();
+$('file-input').addEventListener('change', async (e) => {
+  const file = e.target.files[0];
+  e.target.value = '';
+  if (!file || !state.active) return;
+  try {
+    if (!state.imgCache._connected) { await ensureRes(); state.imgCache._connected = true; }
+    const buf = new Uint8Array(await file.arrayBuffer());
+    const md5hex = await window.wetalk.md5Hex(buf);
+    const ext = (file.name.match(/\.\w+$/)?.[0] || '.bin').toLowerCase();
+    const name = md5hex + ext; // ResourceServer 存储名：内容 md5 + 扩展名
+    // 1) 分片上传到 ResourceServer（1003 一般文件）
+    await window.wetalk.resUpload(state.self.uid, RES_IDS.ID_UPLOAD_FILE_REQ, name, bytesToB64(buf));
+    // 2) ChatServer 1035 落库：fname/fsize 让服务端包进 content，对方能看见原始文件名和大小
+    const uid = state.active;
+    const unique_id = crypto.randomUUID();
+    state.threads[uid] = state.threads[uid] || 0;
+    pushMsg(uid, { type: 'file', mine: true, content: name, fname: file.name, fsize: file.size,
+      time: nowStr(), unique_id, pending: true });
+    window.wetalk.tcpSend(MSG_IDS.ID_IMG_CHAT_MSG_REQ, {
+      fromuid: state.self.uid, touid: uid, thread_id: state.threads[uid],
+      md5: md5hex, name, token: state.self.token,
+      fname: file.name, fsize: file.size,
+      unique_id, chat_time: String(Math.floor(Date.now() / 1000)), status: 3,
+    });
+  } catch (err) {
+    alert('文件发送失败：' + err.message);
+  }
+});
+
+async function downloadFile(m) { // 点文件气泡的"下载"：ResourceServer 拉取 -> 系统另存为
+  if (m._saving) return;
+  m._saving = true;
+  try {
+    if (!state.imgCache._connected) { await ensureRes(); state.imgCache._connected = true; }
+    const r = await window.wetalk.resDownload(state.self.uid, state.self.token, m.content);
+    const saved = await window.wetalk.saveFile(m.fname || m.content, r.dataB64);
+    if (saved) alert('已保存到：' + saved);
+  } catch (err) {
+    alert('下载失败：' + err.message);
+  } finally {
+    m._saving = false;
+  }
 }
 
 async function fetchImage(name) { // 从 ResourceServer 下载图片并缓存
@@ -708,8 +865,10 @@ $('btn-logout').onclick = async () => {
 };
 
 // 断线处理：原地重置回登录页（不 reload，避免初始化/焦点问题）
+// 注意重连进行中不会收到本回调；这里是"彻底放弃"路径（重连次数用完/认证被拒）
 window.wetalk.onClosed(async ({ reason }) => {
   console.log('[conn] closed:', reason);
+  hideReconnectBanner();
   try { await window.wetalk.resClose(); } catch (_) {}
   state.self = null; state.friends = []; state.applies = [];
   state.threads = {}; state.chats = {}; state.history = {};
