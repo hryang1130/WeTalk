@@ -32,8 +32,10 @@ cd client-electron && npm install && npm start
 > 注册新账号需要 SMTP 授权码；没有的话按上面方式直接用测试账号，或往 MySQL `user` 表插数据。
 
 **功能一览**（客户端）：注册/登录/心跳 · 好友申请与同意 · 文本单聊（送达/在线推送）· 表情面板 ·
-图片收发（分片上传下载）· 历史消息游标分页 · **已读回执**（跨机 gRPC 实时通知）· **删除好友**（双向+实时通知）·
-**个人资料设置**（昵称/签名）。服务端还提供：Lars 负载均衡调度（8090/8091 轮换+故障剔除）、
+图片收发（分片上传下载）· **文件收发**（任意格式，保留原始文件名/大小，下载弹系统另存为）·
+历史消息游标分页 · **已读回执**（跨机 gRPC 实时通知）· **删除好友**（双向+实时通知）·
+**个人资料设置**（昵称/签名）· **断线自动重连**（指数退避，恢复后补拉历史/未读，不踢回登录页）·
+服务器地址记忆。服务端还提供：Lars 负载均衡调度（8090/8091 轮换+故障剔除）、
 ChatServer 间 gRPC 同类通知（消息/已读/删好友跨机转发）、消息持久化（`llfc.chat_message`，断线重连后历史不丢）。
 
 **验证服务端链路**（不启动客户端也能跑）：
@@ -41,21 +43,29 @@ ChatServer 间 gRPC 同类通知（消息/已读/删好友跨机转发）、消�
 ```bash
 cd client-electron
 node test-e2e.js        # 登录→认证→表情文本→图片上传→落库→历史→下载比对→已读上报，输出 ALL PASS
+node test-file.js       # 文件消息：1003 上传 → 1035(带文件名/大小) → 历史 → 下载 md5 比对
+node test-offline.js    # 离线消息：B 离线时 A 发消息 → B 登录收 unread_list + 历史含该消息
 node test-profile.js    # /user_profile 端点联调
 ```
 
 ## 架构
 
-```
-                         ┌─────────────── docker network: 172.20.0.0/16 ───────────────┐
- Qt 客户端 ──8080──▶ GateServer ──gRPC──▶ StatusServer ──UDP 8888──▶ lars-agent ──TCP──▶ lars-dns ◀── MySQL(lars_dns)
-   │                     │                        │  ▲                │ UDP 7779                ▲
-   │                     │                        │  │ report         ▼                        │ 路由表 RouteData
-   │                     ├──gRPC──▶ VarifyServer  │  └─────── lars-reporter ────────────────────┘
-   │                     └──gRPC──▶ ResourceServer │
-   ├──8090──▶ ChatServer1 ◀──gRPC(peer)──▶ ChatServer2 ◀── 种子路由(modid=1,cmdid=1)
-   └──8091──▶ ChatServer2
-```
+![WeTalk 架构总览](docs/architecture.svg)
+
+> 图源：`docs/architecture.svg`（可直接改 SVG 里的坐标微调；`client-electron/tools/svgshot.js` 可离屏渲染成 PNG 预览）。
+
+**一条主链路**：客户端 HTTP 登录 Gate（①）→ Gate 用 gRPC 问 Status 要聊天节点（②）→ Status 经 **Lars**
+（lars-agent `get_route`，健康度由 lars-reporter 统计、路由表存在 MySQL `lars_dns.RouteData`）选出健康节点并回传 →
+客户端 **TCP 直连**该 ChatServer（③），此后消息/已读/心跳都走这条长连接；图片与文件不占消息通道，走独立的
+**ResourceServer 数据面**（④，分片上传 + 分片下载）。
+
+**关键设计取舍**：
+
+- **控制面与数据面分离**：Gate 只做 HTTP 无状态接入，聊天连接由 ChatServer 直接持有，文件流量由 ResourceServer 承担，互不拖累。
+- **水平扩展靠 Lars 而不是静态配置**：StatusServer 每次调度都上报调用结果，Agent 在滑动窗口里统计失败率/过载，
+  坏的节点自然被排除；路由表支持版本化热更新（RouteChange），加节点不用改代码。
+- **跨机一致性靠 gRPC peer 通知**：两个 ChatServer 之间用 gRPC 转发文本/图片/已读/删好友通知，保证用户在任意节点都实时收到。
+- **离线消息靠 MySQL 兜底**：消息先落 `chat_message`（`status=0` 未读），登录时下发 `unread_list`，重连/重登都不丢。
 
 ### 关键整合点（相对原版 llfcchat 的改动）
 
@@ -96,6 +106,7 @@ wetalk/
 │   ├── mysql/init/        # lars_dns 库(含路由表) + llfc 业务库
 │   └── seed/seed.sh       # 启动后把 ChatServer 节点写进 RouteData
 ├── docker-compose.yml
+├── docs/architecture.svg # 架构图（README 顶部引用，改图直接编辑 SVG）
 ├── client-electron/      # Electron 桌面客户端（不依赖 Qt，HTTP + TCP 帧协议直连服务端，见其 README-CLIENT.md）
 └── .env.example
 ```
@@ -104,14 +115,24 @@ wetalk/
 
 ```bash
 cp .env.example .env
-# 编辑 .env：CHAT_ADV_IP1/2 填本机局域网 IP（Qt 客户端要用它直连 8090/8091）
+# 编辑 .env：CHAT_ADV_IP1/2 填本机局域网 IP（客户端直连 8090/8091 用；本机联调填 127.0.0.1）
 # 编辑 docker/configs/VarifyServer/config.json：填你自己的 163 SMTP 授权码（原作者授权码已移除，不填则注册时收不到验证码邮件）
 docker compose up -d --build
 docker compose logs -f status lars-agent
 ```
 
+## 端口一览
+
+| 端口 | 服务 | 谁连它 |
+| --- | --- | --- |
+| 8080 | GateServer（HTTP） | 客户端：登录/注册/改资料 |
+| 8090 / 8091 | ChatServer1 / 2（TCP 帧协议） | 客户端：长连接、消息、已读、心跳 |
+| 9090 | ResourceServer（TCP 分片） | 客户端：图片/文件上传下载 |
+| 8888 / 7779（UDP） | lars-agent（get_route / 上报） | StatusServer |
+| 3306 / 6379 | MySQL / Redis | 各服务（容器内网） |
+
 - Gate（HTTP 登录注册）：`http://<host>:8080`
-- ChatServer：`<CHAT_ADV_IP>:8090 / 8091`
+- ChatServer：`<CHAT_ADV_IP>:8090 / 8091`（具体连哪个由 Status 经 Lars 决定，客户端不需要写死）
 - 观察调度结果：`docker compose logs status | grep Lars`
 
 ## 已知问题 / TODO

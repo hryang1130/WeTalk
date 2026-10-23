@@ -1,0 +1,145 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1180 580" font-family="'PingFang SC','Microsoft YaHei','Noto Sans SC',sans-serif">
+  <defs>
+    <marker id="mB" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="#4a6fa5"/></marker>
+    <marker id="mW" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="#8c2f3b"/></marker>
+    <marker id="mG" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="#4b7a5a"/></marker>
+    <marker id="mA" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="#96703f"/></marker>
+    <marker id="mN" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="#948d86"/></marker>
+  </defs>
+
+  <style>
+    .box { fill:#ffffff; stroke:#d8d2cc; stroke-width:1.2; rx:10; }
+    .lars { fill:#f6f3f0; stroke:#d8d2cc; stroke-width:1.2; }
+    .t { font-size:14px; font-weight:600; fill:#1c1a18; }
+    .s { font-size:11px; fill:#57524d; }
+    .lbl { font-size:10.5px; fill:#57524d; }
+    .num { font-weight:700; }
+    .http { stroke:#4a6fa5; stroke-width:1.8; fill:none; }
+    .grpc { stroke:#8c2f3b; stroke-width:1.8; fill:none; }
+    .tcp  { stroke:#4b7a5a; stroke-width:1.8; fill:none; }
+    .udp  { stroke:#96703f; stroke-width:1.8; fill:none; }
+    .store{ stroke:#948d86; stroke-width:1.4; fill:none; stroke-dasharray:5 4; }
+  </style>
+
+  <rect x="0" y="0" width="1180" height="580" fill="#f6f3f0"/>
+  <text x="30" y="26" font-size="17" font-weight="700" fill="#1c1a18">WeTalk 架构总览</text>
+  <text x="1150" y="26" font-size="11" fill="#948d86" text-anchor="end">llfcchat 微服务 × Lars 服务治理 · Docker Compose 172.20.0.0/16</text>
+
+  <!-- ===== 连线（先画线，盒子后画盖上端点） ===== -->
+  <!-- ① 客户端 -> Gate -->
+  <path class="http" d="M180 105 L246 105" marker-end="url(#mB)"/>
+  <text class="lbl" x="213" y="94" text-anchor="middle"><tspan class="num" fill="#4a6fa5">①</tspan> HTTP</text>
+  <!-- ② Gate -> Status -->
+  <path class="grpc" d="M420 105 L496 105" marker-end="url(#mW)"/>
+  <text class="lbl" x="458" y="94" text-anchor="middle"><tspan class="num" fill="#8c2f3b">②</tspan> gRPC 取节点</text>
+  <!-- ③ 客户端 -> Chat：顶部绕行 -->
+  <path class="tcp" d="M105 66 L105 40 L962 40 L962 36" marker-end="url(#mG)"/>
+  <text class="lbl" x="530" y="32" text-anchor="middle"><tspan class="num" fill="#4b7a5a">③</tspan> TCP 长连接 8090/8091（登录时被分配的节点）· 心跳 / 消息 / 已读</text>
+  <!-- Status 调度返回 -->
+  <path class="store" d="M670 88 L874 72" marker-end="url(#mN)"/>
+  <path class="store" d="M670 122 L874 168" marker-end="url(#mN)"/>
+  <text class="lbl" x="760" y="105" text-anchor="middle">调度返回节点地址</text>
+  <!-- Chat1 <-> Chat2 -->
+  <path class="grpc" d="M940 115 L940 140" marker-end="url(#mW)"/>
+  <path class="grpc" d="M990 140 L990 115" marker-end="url(#mW)"/>
+  <text class="lbl" x="965" y="230" text-anchor="middle">gRPC 同类通知（跨机消息 / 已读 / 删好友）</text>
+  <!-- ④ 客户端 -> Resource -->
+  <path class="tcp" d="M105 170 L105 280 L246 280" marker-end="url(#mG)"/>
+  <text class="lbl" x="112" y="297"><tspan class="num" fill="#4b7a5a">④</tspan> 图片/文件分片 9090</text>
+  <!-- Gate -> Resource -->
+  <path class="store" d="M300 160 L300 236" marker-end="url(#mN)"/>
+  <text class="lbl" x="308" y="205">登录响应下发 reshost/resport</text>
+  <!-- Gate -> Varify（Resource 右侧下行） -->
+  <path class="grpc" d="M390 160 L470 160 L470 405 L496 405" marker-end="url(#mW)"/>
+  <text class="lbl" transform="rotate(-90 461 285)" x="461" y="285" text-anchor="middle">gRPC 验证码</text>
+  <!-- Status -> lars-agent / lars-reporter -->
+  <path class="udp" d="M585 160 L585 236" marker-end="url(#mA)"/>
+  <text class="lbl" x="593" y="200">UDP 8888 get_route</text>
+  <path class="udp" d="M670 140 L706 140 L706 262 L736 262" marker-end="url(#mA)"/>
+  <text class="lbl" x="700" y="230" text-anchor="end">UDP 7779 report</text>
+  <!-- reporter -> dns -->
+  <path class="store" d="M910 275 L976 275" marker-end="url(#mN)"/>
+  <text class="lbl" x="943" y="265" text-anchor="middle">健康度</text>
+  <!-- dns -> MySQL(lars_dns) -->
+  <path class="store" d="M1065 310 L1065 395 L890 395 L890 426" marker-end="url(#mN)"/>
+  <text class="lbl" x="1010" y="388" text-anchor="middle">路由表 RouteData</text>
+  <!-- Chat -> MySQL（走 reporter 与 dns 之间的走廊，避免穿过盒子） -->
+  <path class="store" d="M945 215 L945 415 L830 415 L830 426" marker-end="url(#mN)"/>
+  <text class="lbl" x="952" y="335">消息落库 / 已读状态</text>
+  <!-- Resource -> MySQL -->
+  <path class="store" d="M335 320 L335 350 L690 350 L690 455 L696 455" marker-end="url(#mN)"/>
+  <text class="lbl" x="500" y="343">文件元数据 / 分布式锁</text>
+
+  <!-- ===== 盒子 ===== -->
+  <!-- 客户端 -->
+  <rect class="box" x="30" y="70" width="150" height="100" rx="10" fill="#8c2f3b" stroke="#7a2833"/>
+  <text x="105" y="108" class="t" fill="#ffffff" text-anchor="middle">Electron 客户端</text>
+  <text x="105" y="126" class="s" fill="#f2dfe2" text-anchor="middle">双开 · 主进程持有</text>
+  <text x="105" y="141" class="s" fill="#f2dfe2" text-anchor="middle">TCP/HTTP + IPC</text>
+  <!-- Gate -->
+  <rect class="box" x="250" y="70" width="170" height="90" rx="10"/>
+  <text x="335" y="105" class="t" text-anchor="middle">GateServer</text>
+  <text x="335" y="123" class="s" text-anchor="middle">HTTP 登录 / 注册 / 资料</text>
+  <text x="335" y="139" class="s" text-anchor="middle">C++ · asio</text>
+  <!-- Status -->
+  <rect class="box" x="500" y="70" width="170" height="90" rx="10"/>
+  <text x="585" y="105" class="t" text-anchor="middle">StatusServer</text>
+  <text x="585" y="123" class="s" text-anchor="middle">分配 ChatServer 节点</text>
+  <text x="585" y="139" class="s" text-anchor="middle">经 Lars 负载均衡调度</text>
+  <!-- Chat1 -->
+  <rect class="box" x="880" y="40" width="170" height="75" rx="10"/>
+  <text x="965" y="68" class="t" text-anchor="middle">ChatServer1</text>
+  <text x="965" y="86" class="s" text-anchor="middle">TCP 8090 · 消息/好友/已读</text>
+  <text x="965" y="101" class="s" text-anchor="middle">peer：跨机 gRPC 通知</text>
+  <!-- Chat2 -->
+  <rect class="box" x="880" y="140" width="170" height="75" rx="10"/>
+  <text x="965" y="168" class="t" text-anchor="middle">ChatServer2</text>
+  <text x="965" y="186" class="s" text-anchor="middle">TCP 8091 · 消息/好友/已读</text>
+  <text x="965" y="201" class="s" text-anchor="middle">peer：跨机 gRPC 通知</text>
+  <!-- Resource -->
+  <rect class="box" x="250" y="240" width="170" height="80" rx="10"/>
+  <text x="335" y="270" class="t" text-anchor="middle">ResourceServer</text>
+  <text x="335" y="288" class="s" text-anchor="middle">TCP 9090 · 图片/文件</text>
+  <text x="335" y="303" class="s" text-anchor="middle">分片上传 / 分片下载（自研）</text>
+  <!-- Varify -->
+  <rect class="box" x="500" y="370" width="170" height="70" rx="10"/>
+  <text x="585" y="398" class="t" text-anchor="middle">VarifyServer</text>
+  <text x="585" y="416" class="s" text-anchor="middle">Node.js · gRPC</text>
+  <text x="585" y="431" class="s" text-anchor="middle">SMTP 邮件验证码</text>
+  <!-- Lars 三件套 -->
+  <rect class="lars" x="500" y="240" width="170" height="70" rx="10"/>
+  <text x="585" y="268" class="t" text-anchor="middle">lars-agent</text>
+  <text x="585" y="286" class="s" text-anchor="middle">按失败率/过载窗口</text>
+  <text x="585" y="301" class="s" text-anchor="middle">返回健康节点</text>
+  <rect class="lars" x="740" y="240" width="170" height="70" rx="10"/>
+  <text x="825" y="268" class="t" text-anchor="middle">lars-reporter</text>
+  <text x="825" y="286" class="s" text-anchor="middle">滚动窗口统计</text>
+  <text x="825" y="301" class="s" text-anchor="middle">节点调用健康度</text>
+  <rect class="lars" x="980" y="240" width="170" height="70" rx="10"/>
+  <text x="1065" y="268" class="t" text-anchor="middle">lars-dns</text>
+  <text x="1065" y="286" class="s" text-anchor="middle">路由表 + 版本化热更新</text>
+  <text x="1065" y="301" class="s" text-anchor="middle">RouteChange 通知</text>
+  <!-- MySQL -->
+  <rect class="box" x="700" y="430" width="180" height="90" rx="10" fill="#fbfaf9"/>
+  <text x="790" y="456" class="t" text-anchor="middle">MySQL</text>
+  <text x="790" y="474" class="s" text-anchor="middle">llfc：用户 / 好友 / 会话</text>
+  <text x="790" y="489" class="s" text-anchor="middle">chat_message 消息持久化</text>
+  <text x="790" y="504" class="s" text-anchor="middle">lars_dns：RouteData 路由表</text>
+  <!-- Redis -->
+  <rect class="box" x="960" y="430" width="190" height="90" rx="10" fill="#fbfaf9"/>
+  <text x="1055" y="456" class="t" text-anchor="middle">Redis</text>
+  <text x="1055" y="474" class="s" text-anchor="middle">token（登录态）· session</text>
+  <text x="1055" y="489" class="s" text-anchor="middle">userip 路由 · 验证码 · 已读</text>
+  <text x="1055" y="504" class="s" text-anchor="middle">DistLock 文件分布式锁</text>
+
+  <!-- 图例 -->
+  <g transform="translate(30,462)">
+    <text x="0" y="0" class="lbl" font-weight="700" fill="#1c1a18">图例</text>
+    <line x1="0" y1="20" x2="28" y2="20" class="http"/><text x="34" y="24" class="lbl">HTTP</text>
+    <line x1="90" y1="20" x2="118" y2="20" class="grpc"/><text x="124" y="24" class="lbl">gRPC</text>
+    <line x1="180" y1="20" x2="208" y2="20" class="tcp"/><text x="214" y="24" class="lbl">TCP 长连接</text>
+    <line x1="0" y1="42" x2="28" y2="42" class="udp"/><text x="34" y="46" class="lbl">UDP（Lars 调度/上报）</text>
+    <line x1="180" y1="42" x2="208" y2="42" class="store"/><text x="214" y="46" class="lbl">存储 / 配置 / 调度</text>
+  </g>
+  <text x="590" y="552" class="lbl" fill="#948d86" text-anchor="middle">登录：① HTTP 进 Gate → ② Status 经 Lars 选出健康节点 → ③ 客户端 TCP 直连该 ChatServer；图片/文件走 ④ 独立数据面 ResourceServer</text>
+</svg>
