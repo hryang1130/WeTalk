@@ -83,6 +83,8 @@ client-electron/
 ├── core/md5.js        # 纯 JS MD5（Web Crypto 无 MD5；服务端用内容 md5 做去重/续传 key）
 ├── renderer/          # 登录/注册 + 三栏主界面 + 聊天 + 表情面板 + 资料弹窗
 ├── test-e2e.js        # 端到端联调脚本（见下），node test-e2e.js [email] [passwd] [peer_uid]
+├── test-img-cross.js  # 跨用户图片全链路（A 发→B 收 1039→B 下载→已读回执）
+├── test-img-download.js # 跨用户下载 + token 反例
 ├── test-profile.js    # /user_profile 端点联调脚本
 └── mock-server.js     # 本地演示服务（8080/8090/9090），无需 Docker 即可体验 UI
 ```
@@ -95,6 +97,7 @@ client-electron/
 node test-e2e.js        # HTTP登录→TCP认证→表情文本(1017)→图片上传(1037)→图片消息(1035)
                         # →历史(1029)→图片下载字节比对→已读上报(1046)，全链路 ALL PASS 输出
 node test-img-download.js  # 跨用户图片下载：xm 上传 → hao 下载 → 字节一致（+ 伪造 token 应被拒）
+node test-img-cross.js  # 复刻真实场景：A 上传→A 发 1035→B 在线收 1039→B 下载比对→B 报已读→A 收 1048
 node test-profile.js    # /user_profile：错误 token 拒绝 + 正常保存
 ```
 
