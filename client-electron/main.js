@@ -25,6 +25,9 @@ function createWindow() {
     },
   });
   win.setMenuBarVisibility(false);
+  // 心跳等主进程逻辑不受影响，但 renderer 定时器后台会被节流；
+  // 关掉节流保证 TCP 长连接相关的 UI 定时器在后台窗口也正常走
+  win.webContents.setBackgroundThrottling(false);
   // 渲染进程 console/报错转发到主进程 stdout，便于日志排查
   win.webContents.on('console-message', (_e, _level, message, line, sourceId) => {
     console.log('[renderer]', message, (sourceId || '').split(/[\\/]/).pop() + ':' + line);
@@ -85,9 +88,12 @@ ipcMain.handle('tcp:connect', (_e, { host, port, uid, token }) => {
       sock.write(encodeFrame(MSG_IDS.MSG_CHAT_LOGIN, { uid, token }));
       console.log('[tcp] sent MSG_CHAT_LOGIN');
       // 心跳：服务端 ID_HEART_BEAT_REQ(1023) -> 1024
+      // 服务端 IsHeartbeatExpired 超时阈值 20s（CSession.cpp），这里 10s 一跳留足裕量；
+      // 注意必须配合 setBackgroundThrottling(false)，否则窗口在后台时定时器被
+      // Chromium 节流到 1 次/分钟，心跳必然超时被服务端踢掉
       heartbeatTimer = setInterval(() => {
         if (tcp) tcp.write(encodeFrame(MSG_IDS.ID_HEART_BEAT_REQ, {}));
-      }, 30000);
+      }, 10000);
       settled = true;
       resolve(true);
     });
