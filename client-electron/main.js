@@ -25,6 +25,10 @@ function createWindow() {
     },
   });
   win.setMenuBarVisibility(false);
+  // 渲染进程 console/报错转发到主进程 stdout，便于日志排查
+  win.webContents.on('console-message', (_e, _level, message, line, sourceId) => {
+    console.log('[renderer]', message, (sourceId || '').split(/[\\/]/).pop() + ':' + line);
+  });
   win.loadFile(path.join(__dirname, 'renderer', 'index.html'));
 }
 
@@ -113,6 +117,7 @@ ipcMain.handle('session:get', () => session);
 
 /* ---------- ResourceServer 数据面 ---------- */
 ipcMain.handle('res:connect', (_e, { host, port }) => res.connect(host, port));
+ipcMain.handle('res:close', () => { res.close(); return true; });
 // dataB64: 文件内容 base64（renderer 读 File 后转码传过来）
 ipcMain.handle('res:upload', (_e, { uid, msgid, name, dataB64 }) =>
   res.upload(uid, msgid, name, Buffer.from(dataB64, 'base64')));

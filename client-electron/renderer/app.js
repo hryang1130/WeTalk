@@ -88,13 +88,16 @@ $('form-login').onsubmit = async (e) => {
   e.preventDefault();
   try {
     const email = $('login-email').value.trim();
-    const r = await window.wetalk.httpPost('/user_login', { email, passwd: $('login-passwd').value }, gateUrl());
+    const passwd = $('login-passwd').value;
+    if (!email || !passwd) { msg('login-msg', '请先填写邮箱和密码'); return; }
+    const r = await window.wetalk.httpPost('/user_login', { email, passwd }, gateUrl());
     if (r.error !== 0) return msg('login-msg', `登录失败：${errText(r)}`);
     // HTTP 登录返回：{uid, token, chathost, chatport, reshost, resport}
     await window.wetalk.tcpConnect({ host: r.chathost, port: Number(r.chatport), uid: r.uid, token: r.token });
     state.self = { uid: r.uid, email, token: r.token, reshost: r.reshost, resport: r.resport };
     msg('login-msg', '已连接聊天服务器，认证中…', true);
   } catch (err) {
+    console.error('[login] exception:', err);
     msg('login-msg', '登录异常：' + err.message);
   }
 };
@@ -473,5 +476,21 @@ function onNotifyAuth(obj) { // 1015 好友认证通过（对方同意了我的�
   renderContacts();
 }
 
-/* ---------------- 退出 ---------------- */
-$('btn-logout').onclick = async () => { await window.wetalk.tcpClose(); location.reload(); };
+/* ---------------- 退出（原地重置，不 reload） ---------------- */
+$('btn-logout').onclick = async () => {
+  try {
+    await window.wetalk.tcpClose();
+    if (state.self && state.self.token) {
+      try { await window.wetalk.resClose(); } catch (_) {} // 断开 ResourceServer 数据面
+    }
+  } catch (err) { console.error('[logout]', err); }
+  // 清空会话状态，回到登录页
+  state.self = null; state.friends = []; state.applies = [];
+  state.threads = {}; state.chats = {}; state.history = {};
+  state.unread = {}; state.imgCache = {}; state.active = null;
+  state.loadingHistory = false; state.pane = 'chats';
+  $('login-email').value = ''; $('login-passwd').value = '';
+  msg('login-msg', '已退出，请重新登录', true);
+  switchPane('chats');
+  showAuth();
+};

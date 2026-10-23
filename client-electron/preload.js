@@ -10,6 +10,7 @@ contextBridge.exposeInMainWorld('wetalk', {
   tcpSend: (msgid, data) => ipcRenderer.invoke('tcp:send', { msgid, data }),
   tcpClose: () => ipcRenderer.invoke('tcp:close'),
   resConnect: (host, port) => ipcRenderer.invoke('res:connect', { host, port }),
+  resClose: () => ipcRenderer.invoke('res:close'),
   resUpload: (uid, msgid, name, dataB64) => ipcRenderer.invoke('res:upload', { uid, msgid, name, dataB64 }),
   resDownload: (uid, token, name) => ipcRenderer.invoke('res:download', { uid, token, name }),
   onFrame: (cb) => ipcRenderer.on('tcp:frame', (_e, frame) => cb(frame)),
