@@ -6,6 +6,12 @@ const net = require('net');
 const { encodeFrame, decodeFrames, MSG_IDS } = require('./core/protocol');
 const { ResClient } = require('./core/resClient');
 
+// 双开联调：两个实例默认共用 userData 目录，Chromium 会为缓存目录打架
+// （日志里刷 "Unable to move the cache: 拒绝访问"）。设 WETALK_USER_DATA 各用一份就干净了。
+if (process.env.WETALK_USER_DATA) {
+  try { app.setPath('userData', path.resolve(process.env.WETALK_USER_DATA)); } catch (_) {}
+}
+
 let win = null;
 let tcp = null;            // net.Socket (ChatServer)
 let rxState = null;        // 拆包状态机
