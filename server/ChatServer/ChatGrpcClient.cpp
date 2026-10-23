@@ -202,3 +202,63 @@ KickUserRsp ChatGrpcClient::NotifyKickUser(std::string server_ip, const KickUser
 
 	return rsp;
 }
+
+ReadMsgRsp ChatGrpcClient::NotifyReadMsg(std::string server_ip, const ReadMsgReq& req)
+{
+	ReadMsgRsp rsp;
+	Defer defer([&rsp, &req]() {
+		rsp.set_error(ErrorCodes::Success);
+		rsp.set_uid(req.uid());
+		rsp.set_touid(req.touid());
+		});
+
+	auto find_iter = _pools.find(server_ip);
+	if (find_iter == _pools.end()) {
+		return rsp;
+	}
+
+	auto& pool = find_iter->second;
+	ClientContext context;
+	auto stub = pool->getConnection();
+	Defer defercon([&stub, this, &pool]() {
+		pool->returnConnection(std::move(stub));
+		});
+	Status status = stub->NotifyReadMsg(&context, req, &rsp);
+
+	if (!status.ok()) {
+		rsp.set_error(ErrorCodes::RPCFailed);
+		return rsp;
+	}
+
+	return rsp;
+}
+
+DelFriendRsp ChatGrpcClient::NotifyDelFriend(std::string server_ip, const DelFriendReq& req)
+{
+	DelFriendRsp rsp;
+	Defer defer([&rsp, &req]() {
+		rsp.set_error(ErrorCodes::Success);
+		rsp.set_uid(req.uid());
+		rsp.set_touid(req.touid());
+		});
+
+	auto find_iter = _pools.find(server_ip);
+	if (find_iter == _pools.end()) {
+		return rsp;
+	}
+
+	auto& pool = find_iter->second;
+	ClientContext context;
+	auto stub = pool->getConnection();
+	Defer defercon([&stub, this, &pool]() {
+		pool->returnConnection(std::move(stub));
+		});
+	Status status = stub->NotifyDelFriend(&context, req, &rsp);
+
+	if (!status.ok()) {
+		rsp.set_error(ErrorCodes::RPCFailed);
+		return rsp;
+	}
+
+	return rsp;
+}

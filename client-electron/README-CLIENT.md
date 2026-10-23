@@ -3,6 +3,38 @@
 用 Electron + Node.js 重写的桌面客户端，**不依赖 Qt**，直接对接 WeTalk 整合服务端
 （llfcchat 微服务 + Lars 负载均衡）。
 
+## 运行
+
+```bash
+cd client-electron
+npm install        # 国内如下载慢: ELECTRON_MIRROR=https://npmmirror.com/mirrors/electron/ npm install
+npm start
+```
+
+前置条件：服务端已启动（根目录 `docker compose up -d --build`），GateServer 8080 可达。
+
+> ⚠️ 如果 `npm start` 报 `ipcMain` undefined 或 `--version` 显示 Node 版本号：检查环境变量
+> `ELECTRON_RUN_AS_NODE`——从 Electron 应用（如 WorkBuddy/VSCode）内嵌终端启动会继承它，
+> 把 electron.exe 降级成纯 Node。清除后重试：`$env:ELECTRON_RUN_AS_NODE=$null`（PowerShell）
+> 或 `unset ELECTRON_RUN_AS_NODE`（bash）。
+
+窗口尺寸自动联动：登录/注册页为 460×680 小窗，登录成功切 1060×700 主界面。
+
+## 功能清单（全部已实现）
+
+- ✅ 注册（邮箱验证码）、登录、TCP 认证、30s 心跳、断线原地重置回登录页
+- ✅ 好友列表、好友申请/同意、搜索加好友
+- ✅ 文本单聊（1017 发送 / 1018 送达回执 / 1019 在线推送 / thread_id 服务端自动建立）
+- ✅ **表情面板**（😀 按钮，42 个常用 emoji，点选插入光标处）
+- ✅ **图片收发**（📷 → ResourceServer 1037 分片上传 → ChatServer 1035 落库 → 对方经 1033 分片下载渲染）
+- ✅ **历史消息**（1029 游标分页，滚到顶部加载更多）
+- ✅ **已读回执**（打开会话/收到消息自动上报 1046，气泡显示 已读/未读；对方在线实时收到 1048 通知，跨机经 gRPC 转发）
+- ✅ **删除好友**（聊天窗口右上角 🗑，双向删除，对方在线实时收到 1045 通知，跨机经 gRPC 转发）
+- ✅ **个人资料设置**（点左下角自己的头像 → 改昵称/签名 → GateServer `POST /user_profile`，token 校验 + Redis 缓存失效）
+- ✅ 会话列表按最近消息排序、输入框自适应高度、发送按钮随内容启用
+- ✅ 打包：`npm run dist` → `dist/WeTalk-Setup-0.1.0.exe`（NSIS 安装器）
+- ⬜ 一般文件传输（1041 双向确认流程）、离线通知(1021)、群聊
+
 ## 协议对接说明（面试可讲）
 
 服务端对客户端只暴露两种协议，与客户端语言无关：
@@ -12,60 +44,52 @@
    - `POST /user_register` `{email,user,nick,passwd,confirm,icon,varifycode}` → `{uid}`
    - `POST /user_login` `{email,passwd}` → `{uid, token, chathost, chatport, reshost, resport}`
      （chathost 由 StatusServer→Lars 负载均衡选出，这正是整合项目的核心链路）
+   - `POST /user_profile` `{uid, token, nick, desc}` → 更新个人资料（校验 Redis token，更新 MySQL 后删除 `ubaseinfo_<uid>` 缓存）
 2. **TCP 长连接**（ChatServer :8090/:8091，Asio）：
    - 帧格式：`msgid(2B 大端) + msglen(2B 大端) + JSON body`
-   - `1005` TCP 登录 `{uid, token}`（token 来自 HTTP 登录，校验 Redis `utoken_<uid>`）
-   - `1017` 文本消息 `{fromuid, touid, thread_id, text_array:[{content, unique_id}]}`
+   - `1005` TCP 登录 `{uid, token}`（token 校验 Redis `utoken_<uid>`）
+   - `1017` 文本消息 / `1018` 送达回执 / `1019` 在线推送
+   - `1035` 图片消息 / `1036` 回执（含 message_id，供已读标记）
+   - `1043/1044/1045` 删除好友 / 回执 / 被删通知
+   - `1046/1047/1048` 已读上报 / 回执 / 已读通知（uid=已读方，touid=收通知的发送方）
    - `1007/1009/1013` 搜索 / 加好友 / 认证好友，`1023` 心跳
    - 常量表与 `server/ChatServer/const.h` 的 `MSG_IDS` 枚举一一对应
+3. **ResourceServer 数据面**（:9090，直连）：
+   - ⚠️ **包头与 ChatServer 不同**：`msgid(2B 大端) + msglen(4B 大端)`，共 6 字节
+     （见 `server/ResourceServer/const.h`，这是踩过的坑）
+   - `1037` 图片分片上传（片 ≤32KB，JSON 内 data=base64）/ `1033` 分片下载（首片校验 uid+token）
+   - 响应 msgid = 请求 msgid + 1
 
-gRPC 只存在于服务间调用（Gate↔Status↔Chat），客户端完全不接触。
+gRPC 只存在于服务间调用（Gate↔Status↔Chat、Chat↔Chat 同类通知），客户端完全不接触。
 
 ## 目录
 
 ```
 client-electron/
-├── main.js            # 主进程：ChatServer 长连接 + ResourceServer 数据面 + IPC
+├── main.js            # 主进程：ChatServer 长连接 + ResourceServer 数据面 + IPC（含窗口尺寸/焦点修复）
 ├── preload.js         # contextBridge 桥接（sandbox:false，renderer 不开 nodeIntegration）
-├── core/protocol.js   # ChatServer 线协议 + ResourceServer 协议号（与 C++ const.h 对齐）
-├── core/resClient.js  # ResourceServer 分片上传(1037/1003)/下载(1033)客户端，data=base64，片≤32KB
-├── core/md5.js        # 纯 JS MD5（Web Crypto 无 MD5；服务端用内容 md5 做断点续传 key）
-├── renderer/          # 登录/注册 + 好友列表 + 单聊 + 历史消息 + 图片收发 UI
-└── mock-server.js     # 本地演示服务（8080/8090/9090），无需 Docker 即可体验全部 UI 功能
+├── core/protocol.js   # ChatServer 线协议 + 全部 MSG_IDS（与 C++ const.h 对齐）
+├── core/resClient.js  # ResourceServer 客户端（6B 包头！分片上传/下载，data=base64，片≤32KB）
+├── core/md5.js        # 纯 JS MD5（Web Crypto 无 MD5；服务端用内容 md5 做去重/续传 key）
+├── renderer/          # 登录/注册 + 三栏主界面 + 聊天 + 表情面板 + 资料弹窗
+├── test-e2e.js        # 端到端联调脚本（见下），node test-e2e.js [email] [passwd] [peer_uid]
+├── test-profile.js    # /user_profile 端点联调脚本
+└── mock-server.js     # 本地演示服务（8080/8090/9090），无需 Docker 即可体验 UI
 ```
 
-## 功能清单
+## 联调测试脚本
 
-- ✅ 注册（邮箱验证码）、登录、TCP 认证、心跳
-- ✅ 好友列表、好友申请/同意、搜索加好友
-- ✅ 文本单聊（1017/1018 回执/1019 在线推送）
-- ✅ 历史消息（1029 游标分页，滚到顶部加载更多；图片消息显示为缩略图）
-- ✅ 图片收发（📷 按钮 → ResourceServer 1037 分片上传 → ChatServer 1035 落库 → 接收方经 1033 分片下载渲染）
-- ⬜ 一般文件传输（1041 双向确认流程）、离线通知(1021)、群聊
-- ✅ 打包：`npm run dist` → `dist/WeTalk-Setup-0.1.0.exe`（NSIS 安装器）
-
-> 演示模式：`npm run mock` 启动假服务端（8080/8090/9090），客户端连 127.0.0.1 即可体验以上全部交互；
-> 真实服务端按 `../DEPLOY.md` 部署后，登录页把 Gate 地址改成服务器地址即可，客户端代码不用改。
-
-## 运行
+服务端 12 容器全部在跑的前提下：
 
 ```bash
-cd client-electron
-npm install        # 国内如下载慢: ELECTRON_MIRROR=https://npmmirror.com/mirrors/electron/ npm install
-npm start
+node test-e2e.js        # HTTP登录→TCP认证→表情文本(1017)→图片上传(1037)→图片消息(1035)
+                        # →历史(1029)→图片下载字节比对→已读上报(1046)，全链路 ALL PASS 输出
+node test-profile.js    # /user_profile：错误 token 拒绝 + 正常保存
 ```
 
-> ⚠️ 如果 `npm start` 报 `ipcMain` undefined 或 `--version` 显示 Node 版本号：检查环境变量
-> `ELECTRON_RUN_AS_NODE`——从 Electron 应用（如 WorkBuddy/VSCode）内嵌终端启动会继承它，
-> 把 electron.exe 降级成纯 Node。清除后重试：`$env:ELECTRON_RUN_AS_NODE=$null`（PowerShell）
-> 或 `unset ELECTRON_RUN_AS_NODE`（bash）。
+> 注意：脚本使用真实测试数据，不要把 `touid` 传成需要保留好友关系的账号后调用删除流程。
 
-前置条件：服务端已启动（`docker compose up -d --build`），GateServer 8080 可达。
-登录流程：注册（需 VarifyServer 邮箱验证码，需先在 `docker/configs/VarifyServer/config.json` 填 SMTP 授权码）
-→ 登录 → TCP 认证 → 好友列表/单聊。
+## 演示模式
 
-## 已实现 / 未实现
-
-- ✅ 注册、验证码、登录、TCP 认证、心跳、好友列表、好友申请/同意、搜索加好友、文本单聊（含送达回执 1018、在线推送 1019、thread_id 回填）
-- ⬜ 图片消息(1035)、文件同步(1041)、历史消息加载(1029)、离线通知(1021)、群聊
-- ⬜ 打包（electron-builder 打 Windows 安装包）
+`npm run mock` 启动假服务端（8080/8090/9090），无需 Docker 即可体验大部分 UI 交互；
+真实服务端按 `../DEPLOY.md` 部署后，登录页把 Gate 地址改成服务器地址即可，客户端代码不用改。

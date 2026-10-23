@@ -32,6 +32,7 @@ const state = {
   imgCache: {},        // 图片名 -> dataURL
   unread: {},          // uid -> 未读数
   readUpTo: {},        // uid -> 已上报已读的 last_message_id
+  lastAt: {},          // uid -> 最后一条消息时间戳（会话排序用）
   pane: 'chats',       // 中栏当前 tab
 };
 
@@ -186,10 +187,7 @@ function updateBadges() {
 function renderSessions() {
   const ul = $('session-list'); ul.innerHTML = '';
   const uids = new Set([...Object.keys(state.chats).map(Number), ...state.friends.map((f) => f.uid)]);
-  const ordered = [...uids].sort((a, b) => {
-    const la = state.chats[a]?.length || 0, lb = state.chats[b]?.length || 0;
-    return lb - la;
-  });
+  const ordered = [...uids].sort((a, b) => (state.lastAt[b] || 0) - (state.lastAt[a] || 0));
   if (!ordered.length) { ul.innerHTML = '<div class="empty-tip">还没有会话<br>去「联系人」里找个好友吧</div>'; return; }
   for (const uid of ordered) {
     const li = document.createElement('li');
@@ -282,6 +280,7 @@ function onAddFriendRsp(obj) { if (obj.error === 0) alert('申请已发送，等
 function openChat(uid) {
   uid = Number(uid);
   state.active = uid;
+  state.lastAt[uid] = Date.now();
   if (!state.chats[uid]) state.chats[uid] = [];
   if (state.threads[uid] === undefined) state.threads[uid] = 0;
   state.unread[uid] = 0;
@@ -289,9 +288,9 @@ function openChat(uid) {
   $('chat-peer-uid').textContent = 'uid ' + uid;
   const pa = avatarEl(uid, friendName(uid), 'sm'); pa.id = 'chat-peer-avatar';
   $('chat-peer-avatar').replaceWith(pa);
-  $('btn-send').disabled = false;
   $('btn-img').disabled = false;
   $('btn-del-friend').classList.toggle('hidden', !state.friends.some((f) => f.uid === uid));
+  refreshComposer();
   renderSessions(); renderContacts(); updateBadges(); renderMsgs();
   loadHistory(uid);
   reportRead(uid); // 打开会话即上报已读（历史加载后再报一次更精确）
@@ -390,10 +389,10 @@ function onHistoryRsp(obj) { // {error, thread_id, last_message_id, load_more, c
   for (const m of older) if (m.type === 'img' && !state.imgCache[m.content]) fetchImage(m.content);
 }
 
-function onImgRsp(obj) { // 1036 图片消息回执：thread_id 回填 + 去 pending
+function onImgRsp(obj) { // 1036 图片消息回执：thread_id 回填 + 去 pending + 记录 message_id
   if (obj.touid && state.threads[obj.touid] !== undefined) state.threads[obj.touid] = obj.thread_id;
   const arr = state.chats[obj.touid] || [];
-  for (const m of arr) if (m.unique_id === obj.unique_id) m.pending = false;
+  for (const m of arr) if (m.unique_id === obj.unique_id) { m.pending = false; m.msg_id = obj.message_id; }
   if (state.active === obj.touid) renderMsgs();
 }
 
@@ -401,6 +400,7 @@ function onImgRsp(obj) { // 1036 图片消息回执：thread_id 回填 + 去 pen
 function pushMsg(uid, m) {
   if (!state.chats[uid]) state.chats[uid] = [];
   state.chats[uid].push(m);
+  state.lastAt[uid] = Date.now();
   if (state.active === uid) renderMsgs();
   else { state.unread[uid] = (state.unread[uid] || 0) + 1; renderSessions(); updateBadges(); }
 }
@@ -433,11 +433,13 @@ function renderMsgs(keepScrollTop) {
       else { img.className = 'loading'; img.alt = m.content; fetchImage(m.content); }
       div.appendChild(img);
       const meta = document.createElement('span'); meta.className = 'meta';
-      meta.textContent = `${m.content} ${m.time || ''}${m.mine && !m.pending ? (m.read ? ' · 已读' : ' · 未读') : ''}`;
+      const imgTag = m.mine && !m.pending ? (m.read ? '<span class="read-yes">已读</span>' : '<span class="read-no">未读</span>') : '';
+      meta.innerHTML = `${escapeHtml(m.content)} ${escapeHtml(m.time || '')} ${imgTag}`;
       div.appendChild(meta);
     } else {
-      const tag = m.pending ? ' · 发送中' : (m.mine ? (m.read ? ' · 已读' : ' · 未读') : '');
-      div.innerHTML = `${escapeHtml(m.content)}<span class="meta">${m.time}${tag}</span>`;
+      const tag = m.pending ? '<span class="read-no">发送中</span>'
+        : (m.mine ? (m.read ? '<span class="read-yes">已读</span>' : '<span class="read-no">未读</span>') : '');
+      div.innerHTML = `${escapeHtml(m.content)}<span class="meta">${escapeHtml(m.time)} ${tag}</span>`;
     }
     body.appendChild(div);
     row.appendChild(body);
@@ -467,6 +469,7 @@ function sendText() {
   const unique_id = crypto.randomUUID();
   pushMsg(uid, { type: 'text', mine: true, content, time: nowStr(), pending: true, unique_id });
   $('input-box').value = '';
+  refreshComposer();
   window.wetalk.tcpSend(MSG_IDS.ID_TEXT_CHAT_MSG_REQ, {
     fromuid: state.self.uid, touid: uid, thread_id: state.threads[uid] || 0,
     text_array: [{ content, unique_id }],
@@ -474,6 +477,15 @@ function sendText() {
 }
 $('btn-send').onclick = sendText;
 $('input-box').addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendText(); } });
+
+// 输入框自适应高度 + 发送按钮随内容启用/禁用
+function refreshComposer() {
+  const box = $('input-box');
+  $('btn-send').disabled = !box.value.trim() || !state.active;
+  box.style.height = 'auto';
+  box.style.height = Math.min(box.scrollHeight, 120) + 'px';
+}
+$('input-box').addEventListener('input', refreshComposer);
 
 /* ---------------- 图片消息 ---------------- */
 async function ensureRes() {
@@ -577,7 +589,7 @@ $('btn-logout').onclick = async () => {
   // 清空会话状态，回到登录页
   state.self = null; state.friends = []; state.applies = [];
   state.threads = {}; state.chats = {}; state.history = {};
-  state.unread = {}; state.imgCache = {}; state.active = null; state.readUpTo = {};
+  state.unread = {}; state.imgCache = {}; state.active = null; state.readUpTo = {}; state.lastAt = {};
   state.loadingHistory = false; state.pane = 'chats';
   $('login-email').value = ''; $('login-passwd').value = '';
   msg('login-msg', '已退出，请重新登录', true);
@@ -594,7 +606,7 @@ window.wetalk.onClosed(async ({ reason }) => {
   try { await window.wetalk.resClose(); } catch (_) {}
   state.self = null; state.friends = []; state.applies = [];
   state.threads = {}; state.chats = {}; state.history = {};
-  state.unread = {}; state.imgCache = {}; state.active = null; state.readUpTo = {};
+  state.unread = {}; state.imgCache = {}; state.active = null; state.readUpTo = {}; state.lastAt = {};
   state.loadingHistory = false; state.pane = 'chats';
   $('login-email').value = ''; $('login-passwd').value = '';
   msg('login-msg', `连接断开（${reason}），请重新登录`);

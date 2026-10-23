@@ -131,6 +131,8 @@ button.ghost { background:#f4f5f8; color:var(--brand); padding:10px 14px; white-
 .bubble img { max-width:260px; max-height:200px; display:block; border-radius:8px; }
 .bubble img.loading { min-width:120px; min-height:60px; background:rgba(0,0,0,.08); }
 .bubble .meta { display:block; font-size:10px; opacity:.55; margin-top:4px; text-align:right; }
+.bubble .meta .read-yes { color:#1d7a4f; opacity:1; font-weight:600; }
+.bubble .meta .read-no { color:#666e7d; opacity:1; }
 .bubble.pending { opacity:.55; }
 
 /* 输入区 */

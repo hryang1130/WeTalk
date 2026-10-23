@@ -138,6 +138,46 @@ Status ChatServiceImpl::NotifyTextChatMsg(::grpc::ServerContext* context,
 	return Status::OK;
 }
 
+Status ChatServiceImpl::NotifyReadMsg(::grpc::ServerContext* context,
+	const ReadMsgReq* request, ReadMsgRsp* reply) {
+	reply->set_error(ErrorCodes::Success);
+	reply->set_uid(request->uid());
+	reply->set_touid(request->touid());
+
+	// 通知消息发送方（touid）：uid 已读到最后一条 last_message_id
+	auto session = UserMgr::GetInstance()->GetSession(request->touid());
+	if (session == nullptr) {
+		return Status::OK;
+	}
+	Json::Value rtvalue;
+	rtvalue["error"] = ErrorCodes::Success;
+	rtvalue["uid"] = request->uid();            // 已读的人
+	rtvalue["touid"] = request->touid();        // 收通知的发送方
+	rtvalue["thread_id"] = request->thread_id();
+	rtvalue["last_message_id"] = request->last_message_id();
+	session->Send(rtvalue.toStyledString(), ID_NOTIFY_READ_MSG_REQ);
+	return Status::OK;
+}
+
+Status ChatServiceImpl::NotifyDelFriend(::grpc::ServerContext* context,
+	const DelFriendReq* request, DelFriendRsp* reply) {
+	reply->set_error(ErrorCodes::Success);
+	reply->set_uid(request->uid());
+	reply->set_touid(request->touid());
+
+	// 通知被删方（touid）：uid 删除了好友关系
+	auto session = UserMgr::GetInstance()->GetSession(request->touid());
+	if (session == nullptr) {
+		return Status::OK;
+	}
+	Json::Value rtvalue;
+	rtvalue["error"] = ErrorCodes::Success;
+	rtvalue["uid"] = request->uid();            // 删人方
+	rtvalue["touid"] = request->touid();        // 被删方
+	session->Send(rtvalue.toStyledString(), ID_NOTIFY_DEL_FRIEND_REQ);
+	return Status::OK;
+}
+
 
 bool ChatServiceImpl::GetBaseInfo(std::string base_key, int uid, std::shared_ptr<UserInfo>& userinfo)
 {

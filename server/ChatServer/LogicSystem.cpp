@@ -976,6 +976,7 @@ void LogicSystem::DealChatImgMsg(std::shared_ptr<CSession> session,
 
 	//插入数据库
 	MysqlMgr::GetInstance()->AddChatMsg(chat_msg);
+	rtvalue["message_id"] = (Json::Int64)chat_msg->message_id; // 供发送方气泡标记已读
 
 	Defer defer([this, &rtvalue, session]() {
 		std::string return_str = rtvalue.toStyledString();
@@ -1027,11 +1028,25 @@ void LogicSystem::DealDeleteFriend(std::shared_ptr<CSession> session,
 	}
 	session->Send(rtvalue.toStyledString(), ID_DELETE_FRIEND_RSP);
 
-	// 对方在线（同机）则实时通知；跨机简化为下次登录生效
-	Json::Value notify;
-	notify["uid"] = uid;       // 谁删的
-	notify["touid"] = touid;   // 被删的人
-	NotifySameServer(touid, notify.toStyledString(), ID_NOTIFY_DEL_FRIEND_REQ);
+	// 实时通知被删方：同机直发，跨机走 gRPC（对方离线则下次登录生效）
+	{
+		auto& cfg = ConfigMgr::Inst();
+		auto self_name = cfg["SelfServer"]["Name"];
+		std::string to_ip_value;
+		bool b_ip = RedisMgr::GetInstance()->Get(USERIPPREFIX + std::to_string(touid), to_ip_value);
+		if (b_ip && to_ip_value != self_name) {
+			DelFriendReq grpc_req;
+			grpc_req.set_uid(uid);
+			grpc_req.set_touid(touid);
+			ChatGrpcClient::GetInstance()->NotifyDelFriend(to_ip_value, grpc_req);
+		}
+		else if (b_ip) {
+			Json::Value notify;
+			notify["uid"] = uid;       // 谁删的
+			notify["touid"] = touid;   // 被删的人
+			NotifySameServer(touid, notify.toStyledString(), ID_NOTIFY_DEL_FRIEND_REQ);
+		}
+	}
 }
 
 void LogicSystem::DealReadMsg(std::shared_ptr<CSession> session,
@@ -1065,12 +1080,28 @@ void LogicSystem::DealReadMsg(std::shared_ptr<CSession> session,
 	}
 	session->Send(rtvalue.toStyledString(), ID_READ_MSG_RSP);
 
-	// 实时通知发送方（同机在线）；跨机简化为不通知
-	Json::Value notify;
-	notify["uid"] = uid;            // 已读的人
-	notify["touid"] = touid;        // 收到通知的发送方
-	notify["thread_id"] = thread_id;
-	notify["last_message_id"] = last_message_id;
-	NotifySameServer(touid, notify.toStyledString(), ID_NOTIFY_READ_MSG_REQ);
+	// 实时通知发送方：同机直发，跨机走 gRPC
+	{
+		auto& cfg = ConfigMgr::Inst();
+		auto self_name = cfg["SelfServer"]["Name"];
+		std::string to_ip_value;
+		bool b_ip = RedisMgr::GetInstance()->Get(USERIPPREFIX + std::to_string(touid), to_ip_value);
+		if (b_ip && to_ip_value != self_name) {
+			ReadMsgReq grpc_req;
+			grpc_req.set_uid(uid);
+			grpc_req.set_touid(touid);
+			grpc_req.set_thread_id(thread_id);
+			grpc_req.set_last_message_id(last_message_id);
+			ChatGrpcClient::GetInstance()->NotifyReadMsg(to_ip_value, grpc_req);
+		}
+		else if (b_ip) {
+			Json::Value notify;
+			notify["uid"] = uid;            // 已读的人
+			notify["touid"] = touid;        // 收到通知的发送方
+			notify["thread_id"] = thread_id;
+			notify["last_message_id"] = last_message_id;
+			NotifySameServer(touid, notify.toStyledString(), ID_NOTIFY_READ_MSG_REQ);
+		}
+	}
 }
 

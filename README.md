@@ -5,6 +5,45 @@
 把 [llfcchat](https://github.com/secondtonone1/llfcchat)（C++ 微服务聊天系统，原作者恋恋风辰；作者 gitee 原仓库已不公开，gitee 同 commit 镜像：[tfn3147546/llfcchat](https://gitee.com/tfn3147546/llfcchat)，HEAD `4a01c4f`）和 [aceld/Lars](https://github.com/aceld/Lars)（UDP 负载均衡/服务治理框架）整合成一个 **可 Docker Compose 一键部署** 的项目，
 并让 StatusServer 通过 Lars 做真正的负载均衡，而不是读静态配置。
 
+桌面客户端已从 Qt 迁移为 **Electron**（`client-electron/`，功能清单与协议见 [client-electron/README-CLIENT.md](client-electron/README-CLIENT.md)）。
+
+## 快速开始（5 步）
+
+```bash
+# 1. 配置环境
+cp .env.example .env                  # CHAT_ADV_IP1/2 填 127.0.0.1（本机联调）
+# 2. （可选）注册要收验证码：docker/configs/VarifyServer/config.json 填 163 SMTP 授权码
+# 3. 构建并启动全部 12 个容器
+docker compose up -d --build
+# 4. 等待就绪（约 1 分钟）
+docker ps                             # 全部 Up，wetalk-mysql 显示 (healthy)
+# 5. 启动客户端
+cd client-electron && npm install && npm start
+```
+
+**内置测试账号**（已写进 MySQL 种子，互为好友，可直接双开客户端互聊）：
+
+| 邮箱 | 密码 | uid | 备注 |
+| --- | --- | --- | --- |
+| `hao@wetalk.com` | `123456` | 1001 | 与 xm 互为好友 |
+| `xm@wetalk.com` | `123456` | 1099 | 昵称 XiaoMing |
+| `llfc@163.com` 等种子用户 | 见 `docker/mysql/init/02-llfc.sql` | — | 原版项目自带数据 |
+
+> 注册新账号需要 SMTP 授权码；没有的话按上面方式直接用测试账号，或往 MySQL `user` 表插数据。
+
+**功能一览**（客户端）：注册/登录/心跳 · 好友申请与同意 · 文本单聊（送达/在线推送）· 表情面板 ·
+图片收发（分片上传下载）· 历史消息游标分页 · **已读回执**（跨机 gRPC 实时通知）· **删除好友**（双向+实时通知）·
+**个人资料设置**（昵称/签名）。服务端还提供：Lars 负载均衡调度（8090/8091 轮换+故障剔除）、
+ChatServer 间 gRPC 同类通知（消息/已读/删好友跨机转发）、消息持久化（`llfc.chat_message`，断线重连后历史不丢）。
+
+**验证服务端链路**（不启动客户端也能跑）：
+
+```bash
+cd client-electron
+node test-e2e.js        # 登录→认证→表情文本→图片上传→落库→历史→下载比对→已读上报，输出 ALL PASS
+node test-profile.js    # /user_profile 端点联调
+```
+
 ## 架构
 
 ```
@@ -40,6 +79,8 @@
 | 登出安全 | `ChatServer/CSession.cpp` | 登出时删除 Redis 中 `USERTOKENPREFIX+uid` 的 token |
 | Redis 能力 | `StatusServer/RedisMgr.*` | 新增 `SetWithExpire`（SETEX 原子写值+过期），供验证码/token 使用 |
 | 文件服务 | `ResourceServer/`（48 个文件，原版无此服务） | 自建文件资源服务器：FileInfo/FileSystem/FileWorker/LogicWorker、Redis `DistLock` 分布式锁、文件信息同步协议 `ID_FILE_INFO_SYNC_REQ/RSP`(1041/1042)，GateServer 登录响应下发 `reshost/resport` |
+| 社交扩展协议 | `ChatServer/const.h`、`LogicSystem.*`、`MysqlDao.*`、`ChatGrpcClient.*`、`ChatServiceImpl.*`、`message.proto` | 2026-10-23 新增：删除好友 `1043/1044/1045`（双向删 friend 表）、已读回执 `1046/1047/1048`（`chat_message.status` 0→2 + 定向 UPDATE）、首条消息服务端自动建 `chat_thread`；跨机通知走新增 gRPC `NotifyReadMsg/NotifyDelFriend` |
+| 资料设置 | `GateServer/LogicSystem.cpp`、`MysqlDao.*` | HTTP `POST /user_profile`：Redis token 校验 → 更新 user 表 nick/desc（`desc` 是保留字需反引号）→ 删 `ubaseinfo_<uid>` 缓存 |
 
 
 ### 目录

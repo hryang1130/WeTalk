@@ -135,6 +135,30 @@ message KickUserRsp{
 	int32 uid = 2;
 }
 
+message ReadMsgReq {
+	int32 uid = 1;              // 已读方
+	int32 touid = 2;            // 消息发送方（收通知的人）
+	int32 thread_id = 3;
+	int32 last_message_id = 4;
+}
+
+message ReadMsgRsp {
+	int32 error = 1;
+	int32 uid = 2;
+	int32 touid = 3;
+}
+
+message DelFriendReq {
+	int32 uid = 1;              // 删除方
+	int32 touid = 2;            // 被删除方（收通知的人）
+}
+
+message DelFriendRsp {
+	int32 error = 1;
+	int32 uid = 2;
+	int32 touid = 3;
+}
+
 service ChatService {
 	rpc NotifyAddFriend(AddFriendReq) returns (AddFriendRsp) {}
 	rpc RplyAddFriend(RplyFriendReq) returns (RplyFriendRsp) {}
@@ -142,4 +166,6 @@ service ChatService {
 	rpc NotifyAuthFriend(AuthFriendReq) returns (AuthFriendRsp) {}
 	rpc NotifyTextChatMsg(TextChatMsgReq) returns (TextChatMsgRsp){}
 	rpc NotifyKickUser(KickUserReq) returns (KickUserRsp){}
+	rpc NotifyReadMsg(ReadMsgReq) returns (ReadMsgRsp){}
+	rpc NotifyDelFriend(DelFriendReq) returns (DelFriendRsp){}
 }

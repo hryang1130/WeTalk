@@ -23,6 +23,10 @@ using message::TextChatMsgRsp;
 using message::TextChatData;
 using message::KickUserReq;
 using message::KickUserRsp;
+using message::ReadMsgReq;
+using message::ReadMsgRsp;
+using message::DelFriendReq;
+using message::DelFriendRsp;
 
 
 class ChatServiceImpl final: public ChatService::Service
@@ -43,6 +47,14 @@ public:
 	//接受rpc踢人请求
 	Status NotifyKickUser(::grpc::ServerContext* context,
 		const KickUserReq* request, KickUserRsp* response) override;
+
+	//已读上报跨机通知（推给消息发送方 touid）
+	Status NotifyReadMsg(::grpc::ServerContext* context,
+		const ReadMsgReq* request, ReadMsgRsp* response) override;
+
+	//删除好友跨机通知（推给被删方 touid）
+	Status NotifyDelFriend(::grpc::ServerContext* context,
+		const DelFriendReq* request, DelFriendRsp* response) override;
 
 	void RegisterServer(std::shared_ptr<CServer> pServer);
 private:
