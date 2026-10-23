@@ -103,6 +103,15 @@ function tcpSession(host, port) {
   if (!hasImg) fail('image message missing from history: ' + JSON.stringify(rows));
   log('history contains emoji text and image message: OK');
 
+  // 6b. 重登场景回归：客户端重新登录后没有 thread 映射，
+  //     1029 用 thread_id=0 + touid 让服务端解析线程（否则对方/自己重登后看不到之前的消息）
+  s.send(MSG_IDS.ID_LOAD_CHAT_MSG_REQ, { thread_id: 0, touid: PEER, message_id: 0 });
+  const h2 = await s.wait(MSG_IDS.ID_LOAD_CHAT_MSG_RSP);
+  if (h2.error !== 0) fail('history via touid failed: ' + JSON.stringify(h2));
+  if (Number(h2.thread_id) !== Number(threadId)) fail('thread not resolved via touid: ' + JSON.stringify(h2));
+  if (!(h2.chat_datas || []).some((x) => x.msg_content === name)) fail('history via touid missing image');
+  log('history via thread_id=0+touid OK (rows=' + (h2.chat_datas || []).length + ')');
+
   // 7. 图片下载回读比对
   const dl = await res.download(r.uid, r.token, name);
   if (!dl.buffer.equals(PNG)) fail('downloaded image bytes mismatch (' + dl.buffer.length + 'B vs ' + PNG.length + 'B)');

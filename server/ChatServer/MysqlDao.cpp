@@ -868,6 +868,35 @@ bool MysqlDao::CreatePrivateChat(int user1_id, int user2_id, int& thread_id)
 	return false;
 }
 
+// 历史消息的会话成员校验：只允许 private_chat 里的两人拉取该线程
+bool MysqlDao::IsPrivateChatMember(int thread_id, int uid)
+{
+	auto con = pool_->getConnection();
+	if (!con) {
+		return false;
+	}
+
+	Defer defer([this, &con]() {
+		pool_->returnConnection(std::move(con));
+		});
+
+	try {
+		std::unique_ptr<sql::PreparedStatement> pstmt(con->_con->prepareStatement(
+			"SELECT 1 FROM private_chat "
+			"WHERE thread_id = ? AND (user1_id = ? OR user2_id = ?) LIMIT 1"));
+		pstmt->setInt(1, thread_id);
+		pstmt->setInt(2, uid);
+		pstmt->setInt(3, uid);
+		std::unique_ptr<sql::ResultSet> res(pstmt->executeQuery());
+		return res->next();
+	}
+	catch (sql::SQLException& e) {
+		std::cerr << "SQLException: " << e.what()
+			<< " (Code: " << e.getErrorCode() << ")" << std::endl;
+		return false;
+	}
+}
+
 std::shared_ptr<PageResult> MysqlDao::LoadChatMsg(int thread_id, int last_message_id, int page_size)
 {
 	auto con = pool_->getConnection();

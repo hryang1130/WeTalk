@@ -884,7 +884,7 @@ void LogicSystem::CreatePrivateChat(std::shared_ptr<CSession> session, const sho
 	rtvalue["thread_id"] = thread_id;
 }
 
-void LogicSystem::LoadChatMsg(std::shared_ptr<CSession> session, 
+void LogicSystem::LoadChatMsg(std::shared_ptr<CSession> session,
 	const short& msg_id, const string& msg_data) {
 
 	Json::Reader reader;
@@ -892,7 +892,9 @@ void LogicSystem::LoadChatMsg(std::shared_ptr<CSession> session,
 	reader.parse(msg_data, root);
 	auto thread_id = root["thread_id"].asInt();
 	auto message_id = root["message_id"].asInt();
-
+	// 客户端登录后没有 thread 映射（登录响应里没有），带 touid 来解析历史线程
+	auto touid = root["touid"].asInt();
+	auto self_uid = session->GetUserId();
 
 	Json::Value  rtvalue;
 	rtvalue["error"] = ErrorCodes::Success;
@@ -902,6 +904,31 @@ void LogicSystem::LoadChatMsg(std::shared_ptr<CSession> session,
 		std::string return_str = rtvalue.toStyledString();
 		session->Send(return_str, ID_LOAD_CHAT_MSG_RSP);
 		});
+
+	// thread_id=0 + touid：按两人解析/建线程（CreatePrivateChat 幂等，已存在直接返回）。
+	// 只对好友解析，避免任意登录用户用随机 touid 批量造会话线程。
+	if (thread_id <= 0 && touid > 0) {
+		std::vector<std::shared_ptr<UserInfo>> friends;
+		bool is_friend = false;
+		if (GetFriendList(self_uid, friends)) {
+			for (auto& f : friends) {
+				if (f->uid == touid) { is_friend = true; break; }
+			}
+		}
+		if (is_friend) {
+			int resolved = 0;
+			if (MysqlMgr::GetInstance()->CreatePrivateChat(self_uid, touid, resolved) && resolved > 0) {
+				thread_id = resolved;
+			}
+		}
+	}
+
+	// 历史只允许会话成员拉取（否则任何登录用户拿到 thread_id 就能翻别人的聊天记录）
+	if (thread_id <= 0 || !MysqlMgr::GetInstance()->IsPrivateChatMember(thread_id, self_uid)) {
+		rtvalue["error"] = ErrorCodes::LOAD_CHAT_FAILED;
+		return;
+	}
+	rtvalue["thread_id"] = thread_id;
 
 	int page_size = 10;
 	std::shared_ptr<PageResult> res = MysqlMgr::GetInstance()->LoadChatMsg(thread_id, message_id, page_size);

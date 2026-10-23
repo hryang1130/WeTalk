@@ -29,6 +29,7 @@ public:
 		int& nextLastId);
 
 	bool CreatePrivateChat(int user1_id, int user2_id, int &thread_id);
+	bool IsPrivateChatMember(int thread_id, int uid);
 	std::shared_ptr<PageResult> LoadChatMsg(int threadId, int lastId, int pageSize);
 	bool AddChatMsg(std::vector<std::shared_ptr<ChatMessage>>& chat_datas);
 	bool AddChatMsg(std::shared_ptr<ChatMessage> chat_data);

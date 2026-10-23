@@ -273,6 +273,8 @@ public:
 		bool& loadMore,
 		int& nextLastId);
 	bool CreatePrivateChat(int user1_id, int user2_id, int& thread_id);
+	// 历史消息的会话成员校验：只允许 private_chat 里的两人拉取该线程
+	bool IsPrivateChatMember(int thread_id, int uid);
 	std::shared_ptr<PageResult> LoadChatMsg(int threadId, int lastId, int pageSize);
 	bool AddChatMsg(std::vector<std::shared_ptr<ChatMessage>>& chat_datas);
 	bool AddChatMsg(std::shared_ptr<ChatMessage> chat_data);

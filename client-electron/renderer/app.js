@@ -374,23 +374,29 @@ function onNotifyDelFriend(obj) { // 1045 我被删了（obj.uid = 删人方）
   alert(name + ' 已将你从好友列表移除');
 }
 
-/* ---------------- 历史消息（1029，游标分页） ---------------- */
+/* ---------------- 历史消息（1029，游标分页） ----------------
+ * 登录响应里没有 thread_id 映射，所以 thread_id=0 时带上 touid，
+ * 由服务端按两人解析（或首次创建）会话线程，RSP.thread_id 回填。 */
 function loadHistory(uid) {
-  const tid = state.threads[uid] || 0;
-  if (!tid) return;                       // thread 未创建，无历史可拉
+  uid = Number(uid);
   const h = state.history[uid] || { last_message_id: 0, load_more: true, loaded: false };
   if (!h.load_more || state.loadingHistory) return;
   state.loadingHistory = true;
-  window.wetalk.tcpSend(MSG_IDS.ID_LOAD_CHAT_MSG_REQ, { thread_id: tid, message_id: h.last_message_id });
+  state._histPeer = uid; // RSP 里靠它定位会话（thread_id 可能是服务端新解析的）
+  window.wetalk.tcpSend(MSG_IDS.ID_LOAD_CHAT_MSG_REQ, {
+    thread_id: state.threads[uid] || 0, touid: uid, message_id: h.last_message_id,
+  });
 }
 
 function onHistoryRsp(obj) { // {error, thread_id, last_message_id, load_more, chat_datas}
   state.loadingHistory = false;
-  const uid = Object.keys(state.threads).find((u) => state.threads[u] === obj.thread_id);
-  if (!uid || obj.error !== 0) return;
+  const uid = state._histPeer
+    ?? Object.keys(state.threads).find((u) => state.threads[u] === obj.thread_id);
+  if (uid === undefined || uid === null || obj.error !== 0) return;
   const uidNum = Number(uid);
+  if (obj.thread_id) state.threads[uidNum] = obj.thread_id; // 回填线程映射
   const h = state.history[uidNum] || (state.history[uidNum] = {});
-  const arr = state.chats[uidNum];
+  const arr = state.chats[uidNum] || (state.chats[uidNum] = []);
   const older = (obj.chat_datas || []).map((c) => ({
     type: isImgName(c.msg_content) ? 'img' : 'text',
     mine: c.sender === state.self.uid,
@@ -405,6 +411,7 @@ function onHistoryRsp(obj) { // {error, thread_id, last_message_id, load_more, c
   h.last_message_id = obj.last_message_id;
   h.load_more = !!obj.load_more;
   h.loaded = true;
+  renderSessions(); // 拉到历史后刷新会话列表（重登后列表里还没有最后一条消息）
   if (state.active === uidNum) { renderMsgs(true); reportRead(uidNum); }
   for (const m of older) if (m.type === 'img' && !state.imgCache[m.content]) fetchImage(m.content);
 }
