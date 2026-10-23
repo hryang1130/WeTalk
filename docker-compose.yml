@@ -184,6 +184,7 @@ services:
     container_name: wetalk-resource
     volumes:
       - ./docker/configs/ResourceServer/config.ini:/app/config.ini:ro
+      - ./docker/data/resource:/app/data
     ports:
       - "9090:9090"
     depends_on:

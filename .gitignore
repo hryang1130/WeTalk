@@ -11,6 +11,7 @@ client-web/node_modules/
 # 环境与凭据
 .env
 *cookies*.txt
+docker/data/
 docker/configs/VarifyServer/config.json.bak
 
 # 系统杂项

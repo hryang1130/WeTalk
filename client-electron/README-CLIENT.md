@@ -59,6 +59,16 @@ npm start
      （见 `server/ResourceServer/const.h`，这是踩过的坑）
    - `1037` 图片分片上传（片 ≤32KB，JSON 内 data=base64）/ `1033` 分片下载（首片校验 uid+token）
    - 响应 msgid = 请求 msgid + 1
+   - ⚠️ **下载路径按 uid 分目录**：上传落在 `out/<上传者uid>/<name>`，而 1033 默认按
+     **请求方 uid** 拼 `out/<请求方uid>/<name>`，所以「B 下载 A 发的图」天然 404
+     （现象：气泡里只有文件名、缩略图空白）。已在
+     `server/ResourceServer/LogicWorker.cpp` 的 `ID_DOWN_LOAD_FILE_REQ` 里加了跨用户定位：
+     直连路径不存在时按文件名在 `out/*/` 下找回（图片 name 就是内容 md5，天然唯一）。
+     回归脚本：`node test-img-download.js`（A 上传→B 下载→字节比对 + 伪造 token 反例）。
+   - 上传目录由 `[Output] Path` + `[Static] Path` 决定（= cwd/Path/Static）。
+     本仓库配成 `data/img`，compose 把 `./docker/data/resource` 挂到 `/app/data`，
+     **不挂卷的话重建镜像/重启容器会把所有图片一起清空**。
+
 
 gRPC 只存在于服务间调用（Gate↔Status↔Chat、Chat↔Chat 同类通知），客户端完全不接触。
 
@@ -84,6 +94,7 @@ client-electron/
 ```bash
 node test-e2e.js        # HTTP登录→TCP认证→表情文本(1017)→图片上传(1037)→图片消息(1035)
                         # →历史(1029)→图片下载字节比对→已读上报(1046)，全链路 ALL PASS 输出
+node test-img-download.js  # 跨用户图片下载：xm 上传 → hao 下载 → 字节一致（+ 伪造 token 应被拒）
 node test-profile.js    # /user_profile：错误 token 拒绝 + 正常保存
 ```
 

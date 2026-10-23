@@ -29,7 +29,8 @@ const state = {
   active: null,        // 当前聊天对象 uid
   history: {},         // uid -> {last_message_id, load_more, loaded}
   loadingHistory: false,
-  imgCache: {},        // 图片名 -> dataURL
+  imgCache: {},        // 图片名 -> objectURL（'loading' 表示下载中）
+  imgFailed: {},       // 图片名 -> true（下载失败，点气泡重试）
   unread: {},          // uid -> 未读数
   readUpTo: {},        // uid -> 已上报已读的 last_message_id
   lastAt: {},          // uid -> 最后一条消息时间戳（会话排序用）
@@ -440,14 +441,34 @@ function renderMsgs(keepScrollTop) {
     div.className = 'bubble' + (m.pending ? ' pending' : '');
     if (m.unique_id) div.dataset.unique = m.unique_id;
     if (m.type === 'img') {
-      const img = document.createElement('img');
-      const url = m.dataUrl || state.imgCache[m.content];
-      if (url) img.src = url;
-      else { img.className = 'loading'; img.alt = m.content; fetchImage(m.content); }
-      div.appendChild(img);
+      const cached = state.imgCache[m.content];
+      const url = m.dataUrl || (cached && cached !== 'loading' ? cached : '');
+      if (url) {
+        const img = document.createElement('img');
+        img.src = url;
+        div.appendChild(img);
+      } else if (state.imgFailed[m.content]) {
+        const ph = document.createElement('div'); ph.className = 'img-fail';
+        ph.textContent = '图片加载失败，点击重试';
+        div.appendChild(ph);
+        div.style.cursor = 'pointer';
+        div.onclick = () => { // 重试下载
+          delete state.imgFailed[m.content];
+          delete state.imgCache[m.content];
+          fetchImage(m.content);
+        };
+      } else {
+        const img = document.createElement('img');
+        img.className = 'loading';
+        div.appendChild(img);
+        fetchImage(m.content); // 已在下载中会直接 return
+      }
       const meta = document.createElement('span'); meta.className = 'meta';
       const imgTag = m.mine && !m.pending ? (m.read ? '<span class="read-yes">已读</span>' : '<span class="read-no">未读</span>') : '';
-      meta.innerHTML = `${escapeHtml(m.content)} ${escapeHtml(m.time || '')} ${imgTag}`;
+      // 正常渲染时不再把 md5 文件名摆在气泡里（鼠标悬停可看），只有失败时露出文件名便于排查
+      const label = url ? '图片' : m.content;
+      meta.innerHTML = `${escapeHtml(label)} ${escapeHtml(m.time || '')} ${imgTag}`;
+      div.title = m.content;
       div.appendChild(meta);
     } else {
       const tag = m.pending ? '<span class="read-no">发送中</span>'
@@ -542,7 +563,9 @@ function bytesToB64(bytes) {
 }
 
 async function fetchImage(name) { // 从 ResourceServer 下载图片并缓存
-  if (state.imgCache[name] || !state.self) return;
+  if (!name || !state.self) return;
+  if (state.imgCache[name]) return;            // 已缓存，或正在下载（'loading'）
+  if (state.imgFailed[name]) return;           // 失败过，等用户点气泡重试
   state.imgCache[name] = 'loading';
   try {
     if (!state.imgCache._connected) { await ensureRes(); state.imgCache._connected = true; }
@@ -553,6 +576,8 @@ async function fetchImage(name) { // 从 ResourceServer 下载图片并缓存
   } catch (err) {
     console.warn('fetch image failed:', name, err.message);
     delete state.imgCache[name];
+    state.imgFailed[name] = true;
+    if (state.active !== null) renderMsgs();
   }
 }
 
@@ -602,7 +627,7 @@ $('btn-logout').onclick = async () => {
   // 清空会话状态，回到登录页
   state.self = null; state.friends = []; state.applies = [];
   state.threads = {}; state.chats = {}; state.history = {};
-  state.unread = {}; state.imgCache = {}; state.active = null; state.readUpTo = {}; state.lastAt = {};
+  state.unread = {}; state.imgCache = {}; state.imgFailed = {}; state.active = null; state.readUpTo = {}; state.lastAt = {};
   state.loadingHistory = false; state.pane = 'chats';
   $('login-email').value = ''; $('login-passwd').value = '';
   msg('login-msg', '已退出，请重新登录', true);
@@ -619,7 +644,7 @@ window.wetalk.onClosed(async ({ reason }) => {
   try { await window.wetalk.resClose(); } catch (_) {}
   state.self = null; state.friends = []; state.applies = [];
   state.threads = {}; state.chats = {}; state.history = {};
-  state.unread = {}; state.imgCache = {}; state.active = null; state.readUpTo = {}; state.lastAt = {};
+  state.unread = {}; state.imgCache = {}; state.imgFailed = {}; state.active = null; state.readUpTo = {}; state.lastAt = {};
   state.loadingHistory = false; state.pane = 'chats';
   $('login-email').value = ''; $('login-passwd').value = '';
   msg('login-msg', `连接断开（${reason}），请重新登录`);

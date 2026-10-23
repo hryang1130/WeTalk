@@ -7,6 +7,7 @@
 #include "LogicSystem.h"
 #include "ConfigMgr.h"
 #include "RedisMgr.h"
+#include <boost/filesystem.hpp>
 
 LogicWorker::LogicWorker():_b_stop(false)
 {
@@ -323,6 +324,27 @@ void LogicWorker::RegisterCallBacks()
 
 			auto file_path = ConfigMgr::Inst().GetFileOutPath();
 			auto file_path_str = (file_path / uid_str / name).string();
+
+			// 【跨用户下载定位】上传时文件落在「上传方 uid」目录下（out/<上传者>/<name>），
+			// 而这里默认按「请求方 uid」拼路径，于是 B 下载 A 发的图片必然 404（文件不存在）。
+			// 聊天图片的 name 是内容 md5（天然唯一），所以直接按文件名在 out/* 下找回真实路径。
+			if (!name.empty() && !boost::filesystem::exists(file_path_str)) {
+				boost::system::error_code ec;
+				std::string resolved;
+				if (boost::filesystem::is_directory(file_path, ec)) {
+					for (boost::filesystem::directory_iterator it(file_path, ec), end; it != end; it.increment(ec)) {
+						if (ec) break;
+						if (!boost::filesystem::is_directory(it->path(), ec)) continue;
+						auto candidate = it->path() / name;
+						if (boost::filesystem::exists(candidate, ec)) { resolved = candidate.string(); break; }
+					}
+				}
+				if (!resolved.empty()) {
+					file_path_str = resolved;
+					std::cout << "[下载] 跨用户定位文件 " << name << " -> " << resolved << std::endl;
+				}
+			}
+
 			Json::Value  rtvalue;
 			auto callback = [=](const Json::Value& result) {
 
