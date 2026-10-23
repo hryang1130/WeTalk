@@ -1,4 +1,4 @@
-# WeTalk Electron 桌面客户端
+﻿# WeTalk Electron 桌面客户端
 
 用 Electron + Node.js 重写的桌面客户端，**不依赖 Qt**，直接对接 WeTalk 整合服务端
 （llfcchat 微服务 + Lars 负载均衡）。
@@ -18,17 +18,45 @@ npm start
 > 把 electron.exe 降级成纯 Node。清除后重试：`$env:ELECTRON_RUN_AS_NODE=$null`（PowerShell）
 > 或 `unset ELECTRON_RUN_AS_NODE`（bash）。
 
-窗口尺寸自动联动：登录/注册页为 460×680 小窗，登录成功切 1060×700 主界面。
+窗口尺寸自动联动：登录/注册页为 460×680 / 460×780（注册表单更长），登录成功切 1060×700 主界面。
+
+## 界面设计说明（改 UI 前先看这段）
+
+整体基调是**暖中性底 + 单一深酒红强调色**：不用冷灰、不用大面积渐变、不靠重阴影，
+层次靠留白、字重和发丝线（`--line` / `--line-2`）区分。所有颜色、圆角、阴影都在
+`renderer/style.css` 顶部的 `:root` 里，换主题只改那一块（用 CSS 变量而不是硬编码颜色）。
+
+- 颜色：`--ink / --ink-2 / --ink-3 / --ink-4` 四级文字色，`--brand(#8c2f3b)` 强调，
+  `--surface / --surface-2 / --canvas` 三级面，`--rail` 是左侧导航条。
+- 形状：`--r-sm/md/lg/xl` = 8/12/16/20，阴影 `--shadow-1/2/3/pop`。
+- 头像：字母 + 单色渐变（颜色由 uid 取色板），渐变在 CSS 里用 `--av` + `color-mix` 生成，
+  JS 只负责 `el.style.setProperty('--av', color)`。
+- 消息：气泡**只包内容**，时间和已读（`✓` / `✓✓`）放在气泡下方的小字里；
+  同侧连续消息只在本组最后一条挂头像；消息按天分组（今天 / 昨天 / 10月21日）。
+- 图标一律用描边 SVG（`.icon-svg`），不用 emoji 当图标——emoji 在不同机器上字重/大小都不稳。
+
+### 改样式的可视化验证（重要）
+
+不用靠猜。`tools/shot.js` 会用假数据把真实页面渲染并截图：
+
+```bash
+npm run shot        # 输出 client-electron/__ui/01-auth … 06-profile.png
+```
+
+原理：`tools/preload-stub.js` 把 `window.wetalk` 换成桩函数，`tools/seed-main.js`
+在页面里直接灌 `state`（假好友/假会话/假图片），然后 `capturePage()` 出图。
+改完 CSS/HTML 先跑它看一眼，比反复让人肉眼看快得多。
+（`__ui/` 已 gitignore，纯本地产物。）
 
 ## 功能清单（全部已实现）
 
-- ✅ 注册（邮箱验证码）、登录、TCP 认证、30s 心跳、断线原地重置回登录页
+- ✅ 注册（邮箱验证码）、登录、TCP 认证、10s 心跳、断线原地重置回登录页
 - ✅ 好友列表、好友申请/同意、搜索加好友
 - ✅ 文本单聊（1017 发送 / 1018 送达回执 / 1019 在线推送 / thread_id 服务端自动建立）
 - ✅ **表情面板**（😀 按钮，42 个常用 emoji，点选插入光标处）
 - ✅ **图片收发**（📷 → ResourceServer 1037 分片上传 → ChatServer 1035 落库 → 对方经 1033 分片下载渲染）
 - ✅ **历史消息**（1029 游标分页，滚到顶部加载更多）
-- ✅ **已读回执**（打开会话/收到消息自动上报 1046，气泡显示 已读/未读；对方在线实时收到 1048 通知，跨机经 gRPC 转发）
+- ✅ **已读回执**（打开会话/收到消息自动上报 1046，气泡下方显示 `✓` 未读 / `✓✓` 已读；对方在线实时收到 1048 通知，跨机经 gRPC 转发）
 - ✅ **删除好友**（聊天窗口右上角 🗑，双向删除，对方在线实时收到 1045 通知，跨机经 gRPC 转发）
 - ✅ **个人资料设置**（点左下角自己的头像 → 改昵称/签名 → GateServer `POST /user_profile`，token 校验 + Redis 缓存失效）
 - ✅ 会话列表按最近消息排序、输入框自适应高度、发送按钮随内容启用
@@ -82,6 +110,13 @@ client-electron/
 ├── core/resClient.js  # ResourceServer 客户端（6B 包头！分片上传/下载，data=base64，片≤32KB）
 ├── core/md5.js        # 纯 JS MD5（Web Crypto 无 MD5；服务端用内容 md5 做去重/续传 key）
 ├── renderer/          # 登录/注册 + 三栏主界面 + 聊天 + 表情面板 + 资料弹窗
+│   ├── index.html
+│   ├── style.css      # 设计变量都在顶部 :root，改主题只改那里
+│   └── app.js         # 渲染层逻辑（只通过 window.wetalk 与主进程通信）
+├── tools/             # 开发工具（不进打包）
+│   ├── shot.js        # npm run shot：假数据渲染真实页面并截图到 __ui/
+│   ├── preload-stub.js
+│   └── seed-main.js
 ├── test-e2e.js        # 端到端联调脚本（见下），node test-e2e.js [email] [passwd] [peer_uid]
 ├── test-img-cross.js  # 跨用户图片全链路（A 发→B 收 1039→B 下载→已读回执）
 ├── test-img-download.js # 跨用户下载 + token 反例

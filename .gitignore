@@ -13,6 +13,7 @@ client-web/node_modules/
 *cookies*.txt
 docker/data/
 client-electron/.profile-*/
+client-electron/__ui/
 docker/configs/VarifyServer/config.json.bak
 
 # 系统杂项

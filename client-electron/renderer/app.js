@@ -37,12 +37,13 @@ const state = {
   pane: 'chats',       // 中栏当前 tab
 };
 
-const AVATAR_COLORS = ['#7d2834','#2f6f9e','#2f9e6e','#8a6d2f','#6b4fa0','#a05a2c','#3d7a86','#943e5c'];
+// 头像是「形状 + 单字」，颜色取自己的一套低饱和色板；具体渐变在 CSS 里用 --av 生成
+const AVATAR_COLORS = ['#8b4a3f', '#3f6b6b', '#6d5b95', '#96703f', '#4a6fa5', '#965a6a', '#4b7a5a', '#7d6a55'];
 const avatarColor = (uid) => AVATAR_COLORS[Math.abs(Number(uid) || 0) % AVATAR_COLORS.length];
 function avatarEl(uid, name, cls = '') {
   const d = document.createElement('div');
   d.className = 'avatar ' + cls;
-  d.style.background = avatarColor(uid);
+  d.style.setProperty('--av', avatarColor(uid));
   d.textContent = String(name || '?').trim().charAt(0).toUpperCase() || '?';
   return d;
 }
@@ -77,10 +78,12 @@ const gateUrl = () => ($('pane-title') ? '' : '') || ($('gate-url').value.trim()
 $('tab-login').onclick = () => {
   $('tab-login').classList.add('active'); $('tab-register').classList.remove('active');
   $('form-login').classList.remove('hidden'); $('form-register').classList.add('hidden');
+  try { window.wetalk.setSize(460, 680); } catch (_) {} // 登录表短
 };
 $('tab-register').onclick = () => {
   $('tab-register').classList.add('active'); $('tab-login').classList.remove('active');
   $('form-register').classList.remove('hidden'); $('form-login').classList.add('hidden');
+  try { window.wetalk.setSize(460, 780); } catch (_) {} // 注册表长，窗口加高避免滚动
 };
 
 $('btn-varify').onclick = async () => {
@@ -198,7 +201,9 @@ function renderSessions() {
     const main = document.createElement('div'); main.className = 'li-main';
     const msgs = state.chats[uid] || [];
     const last = msgs[msgs.length - 1];
-    const preview = last ? (last.type === 'img' ? '[图片]' : last.content) : '开始聊天';
+    const preview = last
+      ? (last.type === 'img' ? (last.mine ? '我：图片' : '[图片]') : (last.mine ? '我：' : '') + last.content)
+      : '开始聊天';
     main.innerHTML = `<div class="li-name">${escapeHtml(friendName(uid))}</div>
       <div class="li-preview">${escapeHtml(preview)}</div>`;
     li.appendChild(main);
@@ -391,6 +396,7 @@ function onHistoryRsp(obj) { // {error, thread_id, last_message_id, load_more, c
     mine: c.sender === state.self.uid,
     content: c.msg_content,
     time: fmtTime(c.chat_time),
+    ts: c.chat_time ? Number(c.chat_time) * (Number(c.chat_time) > 1e12 ? 1 : 1000) : 0,
     unique_id: String(c.unique_id || ''),
     msg_id: c.msg_id,
     read: c.sender === state.self.uid && Number(c.status) === 2,
@@ -413,10 +419,35 @@ function onImgRsp(obj) { // 1036 图片消息回执：thread_id 回填 + 去 pen
 /* ---------------- 消息渲染 ---------------- */
 function pushMsg(uid, m) {
   if (!state.chats[uid]) state.chats[uid] = [];
+  if (!m.ts) m.ts = Date.now(); // 按天分组用（历史消息会在映射时带上真实 chat_time）
   state.chats[uid].push(m);
   state.lastAt[uid] = Date.now();
   if (state.active === uid) renderMsgs();
   else { state.unread[uid] = (state.unread[uid] || 0) + 1; renderSessions(); updateBadges(); }
+}
+
+/* 已读状态用「单✓/双✓」而不是文字，气泡里更安静（title 里给中文说明） */
+function readMark(m) {
+  if (m.pending) return '<span class="read-no">发送中</span>';
+  if (!m.mine) return '';
+  return m.read
+    ? '<span class="read-yes" title="已读">✓✓</span>'
+    : '<span class="read-no" title="未读">✓</span>';
+}
+
+/* 消息按天分组（今天 / 昨天 / 10月21日） */
+function dayStartMs(ts) {
+  const d = new Date(ts);
+  return new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+}
+function dayLabel(ts) {
+  const now = new Date();
+  const diff = Math.round((dayStartMs(now.getTime()) - dayStartMs(ts)) / 864e5);
+  if (diff === 0) return '今天';
+  if (diff === 1) return '昨天';
+  const d = new Date(ts);
+  const y = d.getFullYear() === now.getFullYear() ? '' : d.getFullYear() + '年';
+  return `${y}${d.getMonth() + 1}月${d.getDate()}日`;
 }
 
 function renderMsgs(keepScrollTop) {
@@ -429,13 +460,33 @@ function renderMsgs(keepScrollTop) {
     tip.textContent = '开始你的第一次对话吧';
     box.appendChild(tip);
   }
-  for (const m of msgs) {
+  let lastDay = null;
+  msgs.forEach((m, i) => {
+    if (m.ts) {
+      const dk = dayStartMs(m.ts);
+      if (dk !== lastDay) {
+        lastDay = dk;
+        const sep = document.createElement('div'); sep.className = 'day-sep';
+        sep.textContent = dayLabel(m.ts);
+        box.appendChild(sep);
+      }
+    }
+    // 同一侧连续消息只在本组最后一条挂头像，其余留等宽占位（气泡更整齐，不刷屏）
+    const next = msgs[i + 1];
+    const sameGroupNext = next && !!next.mine === !!m.mine
+      && (!next.ts || !m.ts || dayStartMs(next.ts) === dayStartMs(m.ts));
+
     const row = document.createElement('div');
-    row.className = 'msg-row ' + (m.mine ? 'mine' : '');
+    row.className = 'msg-row ' + (m.mine ? 'mine' : '') + (sameGroupNext ? ' group-end-off' : '');
     const peer = state.active;
-    row.appendChild(m.mine
-      ? ($avatar.me ? $avatar.me.cloneNode(true) : avatarEl(state.self.uid, state.self.name))
-      : avatarEl(peer, friendName(peer)));
+    if (sameGroupNext) {
+      const gap = document.createElement('div'); gap.className = 'avatar-ghost';
+      row.appendChild(gap);
+    } else {
+      row.appendChild(m.mine
+        ? ($avatar.me ? $avatar.me.cloneNode(true) : avatarEl(state.self.uid, state.self.name))
+        : avatarEl(peer, friendName(peer)));
+    }
     const body = document.createElement('div'); body.className = 'msg-body ' + (m.mine ? 'mine' : '');
     const div = document.createElement('div');
     div.className = 'bubble' + (m.pending ? ' pending' : '');
@@ -446,6 +497,7 @@ function renderMsgs(keepScrollTop) {
       if (url) {
         const img = document.createElement('img');
         img.src = url;
+        div.classList.add('bubble-img');
         div.appendChild(img);
       } else if (state.imgFailed[m.content]) {
         const ph = document.createElement('div'); ph.className = 'img-fail';
@@ -463,22 +515,21 @@ function renderMsgs(keepScrollTop) {
         div.appendChild(img);
         fetchImage(m.content); // 已在下载中会直接 return
       }
-      const meta = document.createElement('span'); meta.className = 'meta';
-      const imgTag = m.mine && !m.pending ? (m.read ? '<span class="read-yes">已读</span>' : '<span class="read-no">未读</span>') : '';
-      // 正常渲染时不再把 md5 文件名摆在气泡里（鼠标悬停可看），只有失败时露出文件名便于排查
-      const label = url ? '图片' : m.content;
-      meta.innerHTML = `${escapeHtml(label)} ${escapeHtml(m.time || '')} ${imgTag}`;
-      div.title = m.content;
-      div.appendChild(meta);
+      div.title = m.content; // 悬停可看真实文件名，气泡里不摆 md5
     } else {
-      const tag = m.pending ? '<span class="read-no">发送中</span>'
-        : (m.mine ? (m.read ? '<span class="read-yes">已读</span>' : '<span class="read-no">未读</span>') : '');
-      div.innerHTML = `${escapeHtml(m.content)}<span class="meta">${escapeHtml(m.time)} ${tag}</span>`;
+      div.textContent = m.content;
     }
     body.appendChild(div);
+
+    // 时间/已读放在气泡外，气泡只承担内容 —— 视觉更干净
+    const meta = document.createElement('div');
+    meta.className = 'msg-meta';
+    meta.innerHTML = `${escapeHtml(m.time || '')} ${readMark(m)}`;
+    body.appendChild(meta);
+
     row.appendChild(body);
     box.appendChild(row);
-  }
+  });
   if (keepScrollTop) box.scrollTop = box.scrollHeight - prevHeight;
   else box.scrollTop = box.scrollHeight;
   const h = state.history[state.active];
@@ -688,8 +739,9 @@ $('profile-save').onclick = async () => {
 };
 
 /* ---------------- 表情面板 ---------------- */
+// 只用 Windows 自带字体覆盖得到的字形：避免 🤝/🤯/🫡 这类新版 emoji 在这台机器上显示成方框
 const EMOJIS = ['😀','😁','😂','🤣','😊','😍','😘','😜','🤔','😐','😴','😭','😡',
-  '👍','👎','👏','🙏','💪','🤝','🫡','🥳','😎','🥺','😤','🤯',
+  '👍','👎','👏','🙏','💪','👌','🤗','🥳','😎','🥺','😤','😱',
   '🎉','❤️','💔','🌹','🍺','⚽','🌈','☀️','🌙','⭐','🔥','💯','🚀','🍀','🎁','🐶','🐱'];
 const panel = $('emoji-panel');
 for (const e of EMOJIS) {
@@ -701,6 +753,7 @@ for (const e of EMOJIS) {
     ta.value = ta.value.slice(0, s) + e + ta.value.slice(en);
     ta.selectionStart = ta.selectionEnd = s + e.length;
     ta.focus();
+    refreshComposer(); // 程序化改 value 不会触发 input 事件，手动刷新发送按钮状态
   };
   panel.appendChild(b);
 }

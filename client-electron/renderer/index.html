@@ -10,8 +10,12 @@
   <!-- 登录 / 注册 -->
   <div id="view-auth" class="auth-wrap">
     <div class="auth-card">
-      <div class="brand-badge">W</div>
-      <h1 class="brand">WeTalk</h1>
+      <div class="auth-head">
+        <div class="brand-badge">W</div>
+        <h1 class="brand">WeTalk</h1>
+        <div class="brand-sub">轻量 · 即时的桌面聊天</div>
+      </div>
+
       <div class="tabs">
         <button id="tab-login" class="tab active">登录</button>
         <button id="tab-register" class="tab">注册</button>
@@ -21,7 +25,7 @@
         <div class="field"><label>服务器</label><input id="gate-url" value="http://127.0.0.1:8080" /></div>
         <div class="field"><label>邮箱</label><input id="login-email" placeholder="you@example.com" autocomplete="username" /></div>
         <div class="field"><label>密码</label><input id="login-passwd" type="password" placeholder="••••••••" autocomplete="current-password" /></div>
-        <button type="submit" class="primary">登 录</button>
+        <button type="submit" class="primary">登录</button>
         <div id="login-msg" class="msg"></div>
       </form>
 
@@ -32,13 +36,18 @@
           <div class="field grow"><label>验证码</label><input id="reg-varifycode" placeholder="6 位验证码" /></div>
           <button id="btn-varify" type="button" class="ghost">获取</button>
         </div>
-        <div class="field"><label>用户名</label><input id="reg-user" placeholder="字母/数字" /></div>
-        <div class="field"><label>昵称</label><input id="reg-nick" placeholder="可留空" /></div>
-        <div class="field"><label>密码</label><input id="reg-passwd" type="password" placeholder="••••••••" /></div>
-        <div class="field"><label>确认密码</label><input id="reg-confirm" type="password" placeholder="••••••••" /></div>
-        <button type="submit" class="primary">注 册</button>
+        <div class="row">
+          <div class="field grow"><label>用户名</label><input id="reg-user" placeholder="字母 / 数字" /></div>
+          <div class="field grow"><label>昵称</label><input id="reg-nick" placeholder="可留空" /></div>
+        </div>
+        <div class="row">
+          <div class="field grow"><label>密码</label><input id="reg-passwd" type="password" placeholder="••••••••" /></div>
+          <div class="field grow"><label>确认密码</label><input id="reg-confirm" type="password" placeholder="••••••••" /></div>
+        </div>
+        <button type="submit" class="primary">创建账号</button>
         <div id="reg-msg" class="msg"></div>
       </form>
+
       <div class="hint">服务端默认本机 8080；部署在服务器时改为 http://服务器IP:8080</div>
     </div>
   </div>
@@ -57,7 +66,7 @@
       </button>
       <div class="nav-spacer"></div>
       <div id="me-avatar" class="avatar nav-me">我</div>
-      <button id="btn-logout" class="nav-btn" title="退出">
+      <button id="btn-logout" class="nav-btn" title="退出登录">
         <svg viewBox="0 0 24 24"><path d="M16 13v-2H7V8l-5 4 5 4v-3h9zm3-10H9a2 2 0 0 0-2 2v3h2V5h10v14H9v-4H7v4a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2z"/></svg>
       </button>
     </nav>
@@ -68,7 +77,9 @@
         <div id="pane-title" class="pane-title">消息</div>
         <div class="search-row">
           <input id="search-input" placeholder="搜索 uid / 用户名" />
-          <button id="btn-search" class="icon-btn" title="搜索">🔍</button>
+          <button id="btn-search" class="icon-btn" title="搜索">
+            <svg class="icon-svg" viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.5"/><path d="M16 16l4.5 4.5"/></svg>
+          </button>
         </div>
       </div>
       <div id="search-result" class="search-result hidden"></div>
@@ -91,16 +102,26 @@
           <div id="chat-peer-name">选择一个好友开始聊天</div>
           <div id="chat-peer-uid" class="muted"></div>
         </div>
-        <button id="btn-del-friend" class="icon-btn danger hidden" title="删除好友">🗑</button>
+        <button id="btn-del-friend" class="icon-btn danger hidden" title="删除好友">
+          <svg class="icon-svg" viewBox="0 0 24 24"><path d="M4 7h16M9.5 7V5h5v2M6.5 7l.8 12.2a1.5 1.5 0 0 0 1.5 1.3h6.4a1.5 1.5 0 0 0 1.5-1.3L17.5 7"/></svg>
+        </button>
       </header>
+
       <div id="msg-list" class="msg-list">
         <div class="system">开始你的第一次对话吧</div>
       </div>
+
       <div class="composer">
-        <button id="btn-emoji" class="icon-btn big" title="表情">😀</button>
-        <button id="btn-img" class="icon-btn big" title="发送图片">📷</button>
-        <input type="file" id="img-input" accept="image/*" class="hidden" />
-        <textarea id="input-box" rows="1" placeholder="输入消息，Enter 发送（Shift+Enter 换行）"></textarea>
+        <div class="composer-box">
+          <button id="btn-emoji" class="icon-btn big" title="表情">
+            <svg class="icon-svg" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M8.6 14.2a4 4 0 0 0 6.8 0"/><circle cx="9.3" cy="9.8" r=".9" fill="currentColor" stroke="none"/><circle cx="14.7" cy="9.8" r=".9" fill="currentColor" stroke="none"/></svg>
+          </button>
+          <button id="btn-img" class="icon-btn big" title="发送图片">
+            <svg class="icon-svg" viewBox="0 0 24 24"><rect x="3.5" y="5" width="17" height="14" rx="3"/><circle cx="8.8" cy="10" r="1.4"/><path d="M4.5 17.5l4.2-4.2a1.6 1.6 0 0 1 2.3 0l3 3M14.8 14.6l1.9-1.9a1.6 1.6 0 0 1 2.3 0l1.5 1.5"/></svg>
+          </button>
+          <input type="file" id="img-input" accept="image/*" class="hidden" />
+          <textarea id="input-box" rows="1" placeholder="输入消息，Enter 发送 · Shift+Enter 换行"></textarea>
+        </div>
         <button id="btn-send" class="primary send-btn" disabled>发送</button>
         <div id="emoji-panel" class="emoji-panel hidden"></div>
       </div>

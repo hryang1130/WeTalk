@@ -6,6 +6,8 @@
   "scripts": {
     "start": "electron .",
     "mock": "node mock-server.js",
+    "shot": "electron tools/shot.js",
+    "test:cross": "node test-img-cross.js",
     "dist": "electron-builder --win nsis"
   },
   "build": {
