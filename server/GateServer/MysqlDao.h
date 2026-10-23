@@ -178,6 +178,18 @@ public:
 	}
 
 	void returnConnection(std::unique_ptr<SqlConnection> con) {
+		// 归还前复位事务状态：DAO 里 setAutoCommit(false) 的路径若没复位就归还，
+		// 连接会带着「手动提交」状态回池，后续所有语句变成永不提交的隐式事务并持锁
+		// （最终报 Lock wait timeout exceeded）。与 ChatServer/MysqlDao.h 同一处修复。
+		if (con && con->_con) {
+			try {
+				if (!con->_con->getAutoCommit()) {
+					con->_con->rollback();
+					con->_con->setAutoCommit(true);
+				}
+			}
+			catch (...) {}
+		}
 		std::unique_lock<std::mutex> lock(mutex_);
 		if (b_stop_) {
 			return;

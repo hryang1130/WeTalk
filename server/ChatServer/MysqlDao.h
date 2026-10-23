@@ -198,6 +198,20 @@ public:
 	}
 
 	void returnConnection(std::unique_ptr<SqlConnection> con) {
+		// 【归还前复位事务状态】部分 DAO（CreatePrivateChat / AddChatMsg / AddFriendApply …）
+		// 会先 setAutoCommit(false) 再用 commit/rollback 收尾；一旦某条路径没复位就直接归还，
+		// 连接会带着「手动提交」状态回到池里 —— 之后借用它的线程执行的所有 INSERT/UPDATE
+		// 都变成永不提交的隐式事务：自己查不到别人的新数据、还一直持着行锁，
+		// 攒到几个就把表锁死，报 "Lock wait timeout exceeded"（现象：消息发不出/收不到、图片不渲染）。
+		if (con && con->_con) {
+			try {
+				if (!con->_con->getAutoCommit()) {
+					con->_con->rollback();       // 残留未提交事务一律回滚（已 commit 过的调用是空操作）
+					con->_con->setAutoCommit(true);
+				}
+			}
+			catch (...) {}
+		}
 		std::unique_lock<std::mutex> lock(mutex_);
 		if (b_stop_) {
 			return;
