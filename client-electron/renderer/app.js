@@ -1,4 +1,4 @@
-// 渲染进程：仅通过 window.wetalk (preload) 与主进程通信（contextIsolation 下不能 require）。
+﻿// 渲染进程：仅通过 window.wetalk (preload) 与主进程通信（contextIsolation 下不能 require）。
 if (!window.wetalk) {
   document.body.innerHTML =
     '<div style="padding:40px;font-family:sans-serif;color:#c0392b;line-height:1.8">' +
@@ -28,7 +28,7 @@ const state = {
   chats: {},           // uid -> [{type:'text'|'img', mine, content, time, unique_id, pending, dataUrl}]
   active: null,        // 当前聊天对象 uid
   history: {},         // uid -> {last_message_id, load_more, loaded}
-  loadingHistory: false,
+  loadingHistory: {},  // uid -> true（该会话的历史请求在途）
   imgCache: {},        // 图片名 -> objectURL（'loading' 表示下载中）
   imgFailed: {},       // 图片名 -> true（下载失败，点气泡重试）
   unread: {},          // uid -> 未读数
@@ -164,8 +164,19 @@ function onLoginRsp(obj) {
   state.self = { ...state.self, name: obj.name, nick: obj.nick, icon: obj.icon };
   state.friends = obj.friend_list || [];
   state.applies = obj.apply_list || [];
+  // 离线期间的未读消息：服务端登录时下发 {uid, count}，点亮会话/导航红点
+  for (const u of obj.unread_list || []) {
+    state.unread[u.uid] = (state.unread[u.uid] || 0) + Number(u.count || 0);
+  }
   msg('login-msg', '登录成功', true);
   showMain();
+  renderSessions(); updateBadges();
+  // 有未读的会话直接预拉历史：会话列表立刻能看到最后一条消息和红点，
+  // 不用逐个点开才知道（这正是"离线消息收不到"的体感来源）
+  for (const uidStr of Object.keys(state.unread)) {
+    const uid = Number(uidStr);
+    if (state.friends.some((f) => f.uid === uid)) loadHistory(uid);
+  }
 }
 
 /* ---------------- 中栏 tab ---------------- */
@@ -380,8 +391,8 @@ function onNotifyDelFriend(obj) { // 1045 我被删了（obj.uid = 删人方）
 function loadHistory(uid) {
   uid = Number(uid);
   const h = state.history[uid] || { last_message_id: 0, load_more: true, loaded: false };
-  if (!h.load_more || state.loadingHistory) return;
-  state.loadingHistory = true;
+  if (!h.load_more || state.loadingHistory[uid]) return;
+  state.loadingHistory[uid] = true;
   state._histPeer = uid; // RSP 里靠它定位会话（thread_id 可能是服务端新解析的）
   window.wetalk.tcpSend(MSG_IDS.ID_LOAD_CHAT_MSG_REQ, {
     thread_id: state.threads[uid] || 0, touid: uid, message_id: h.last_message_id,
@@ -389,7 +400,7 @@ function loadHistory(uid) {
 }
 
 function onHistoryRsp(obj) { // {error, thread_id, last_message_id, load_more, chat_datas}
-  state.loadingHistory = false;
+  delete state.loadingHistory[state._histPeer];
   const uid = state._histPeer
     ?? Object.keys(state.threads).find((u) => state.threads[u] === obj.thread_id);
   if (uid === undefined || uid === null || obj.error !== 0) return;
@@ -686,7 +697,7 @@ $('btn-logout').onclick = async () => {
   state.self = null; state.friends = []; state.applies = [];
   state.threads = {}; state.chats = {}; state.history = {};
   state.unread = {}; state.imgCache = {}; state.imgFailed = {}; state.active = null; state.readUpTo = {}; state.lastAt = {};
-  state.loadingHistory = false; state.pane = 'chats';
+  state.loadingHistory = {}; state.pane = 'chats';
   $('login-email').value = ''; $('login-passwd').value = '';
   msg('login-msg', '已退出，请重新登录', true);
   switchPane('chats');
@@ -703,7 +714,7 @@ window.wetalk.onClosed(async ({ reason }) => {
   state.self = null; state.friends = []; state.applies = [];
   state.threads = {}; state.chats = {}; state.history = {};
   state.unread = {}; state.imgCache = {}; state.imgFailed = {}; state.active = null; state.readUpTo = {}; state.lastAt = {};
-  state.loadingHistory = false; state.pane = 'chats';
+  state.loadingHistory = {}; state.pane = 'chats';
   $('login-email').value = ''; $('login-passwd').value = '';
   msg('login-msg', `连接断开（${reason}），请重新登录`);
   switchPane('chats');

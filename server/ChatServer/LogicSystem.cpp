@@ -185,6 +185,19 @@ void LogicSystem::LoginHandler(shared_ptr<CSession> session, const short &msg_id
 		}
 	}
 
+	// 未读消息汇总（离线期间别人发给我的）：登录时就下发，客户端点亮会话红点
+	{
+		std::map<int, int> unread;
+		if (MysqlMgr::GetInstance()->GetUnreadSummary(uid, unread)) {
+			for (auto& kv : unread) {
+				Json::Value u;
+				u["uid"] = kv.first;
+				u["count"] = kv.second;
+				rtvalue["unread_list"].append(u);
+			}
+		}
+	}
+
 	//获取好友列表
 	std::vector<std::shared_ptr<UserInfo>> friend_list;
 	bool b_friend_list = GetFriendList(uid, friend_list);

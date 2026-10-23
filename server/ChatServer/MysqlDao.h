@@ -12,6 +12,7 @@
 #include <queue>
 #include <mutex>
 #include <condition_variable>
+#include <map>
 #include "message.pb.h"
 using message::AddFriendMsg;
 using message::TextChatData;
@@ -265,6 +266,8 @@ public:
 	std::shared_ptr<UserInfo> GetUser(std::string name);
 	bool GetApplyList(int touid, std::vector<std::shared_ptr<ApplyInfo>>& applyList, int offset, int limit );
 	bool GetFriendList(int self_id, std::vector<std::shared_ptr<UserInfo> >& user_info);
+	// 未读消息汇总：status=UN_READ 且 recv_id=uid 的消息按发送方聚合计数（登录时下发用）
+	bool GetUnreadSummary(int uid, std::map<int, int>& out);
 	bool GetUserThreads(
 		int64_t userId,
 		int64_t lastId,

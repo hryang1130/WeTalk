@@ -1,5 +1,6 @@
 #include "MysqlDao.h"
 #include "ConfigMgr.h"
+#include <algorithm>
 
 MysqlDao::MysqlDao()
 {
@@ -677,6 +678,39 @@ bool MysqlDao::GetFriendList(int self_id, std::vector<std::shared_ptr<UserInfo> 
 	return true;
 }
 
+// 未读消息汇总：status=UN_READ(0) 且 recv_id=uid 的消息按发送方聚合计数。
+// 登录时下发给客户端，用来点亮会话红点（离线期间收到的消息不会再"隐形"）。
+bool MysqlDao::GetUnreadSummary(int uid, std::map<int, int>& out)
+{
+	auto con = pool_->getConnection();
+	if (!con) {
+		return false;
+	}
+
+	Defer defer([this, &con]() {
+		pool_->returnConnection(std::move(con));
+		});
+
+	try {
+		std::unique_ptr<sql::PreparedStatement> pstmt(con->_con->prepareStatement(
+			"SELECT sender_id, COUNT(*) AS cnt FROM chat_message "
+			"WHERE recv_id = ? AND status = 0 "
+			"GROUP BY sender_id"));
+		pstmt->setInt(1, uid);
+		std::unique_ptr<sql::ResultSet> res(pstmt->executeQuery());
+		while (res->next()) {
+			out[res->getInt("sender_id")] = res->getInt("cnt");
+		}
+		return true;
+	}
+	catch (sql::SQLException& e) {
+		std::cerr << "SQLException: " << e.what();
+		std::cerr << " (MySQL error code: " << e.getErrorCode();
+		std::cerr << ", SQLState: " << e.getSQLState() << " )" << std::endl;
+		return false;
+	}
+}
+
 // 新增两个输出参数：loadMore, nextLastId
 bool MysqlDao::GetUserThreads(
 	int64_t userId,
@@ -914,14 +948,19 @@ std::shared_ptr<PageResult> MysqlDao::LoadChatMsg(int thread_id, int last_messag
 		page_res->load_more = false;
 		page_res->next_cursor = last_message_id;
 
-		// SQL：多取一条，用于判断是否还有更多
+		// 【游标语义】message_id=0 表示"取最新一页"（重登后打开会话就是它）；
+		// message_id>0 表示"取比它更早的一页"（向上翻历史）。
+		// 两种情况都按 message_id 倒序取 page_size+1 条（多取一条判断还有没有更早的），
+		// 再反转成升序返回，next_cursor = 本页最旧一条的 id。
+		// 旧实现是 `message_id > ?  ORDER BY ASC`：cursor=0 永远拿最老的 10 条，
+		// 新收到的离线消息（最大 id）永远不在第一页，且 load_more 恒为 false 无法翻页。
 		const std::string sql = R"(
         SELECT message_id, thread_id, sender_id, recv_id, content,
                created_at, updated_at, status
         FROM chat_message
         WHERE thread_id = ?
-          AND message_id > ?
-        ORDER BY message_id ASC
+          AND (? = 0 OR message_id < ?)
+        ORDER BY message_id DESC
         LIMIT ?
 		)";
 
@@ -931,11 +970,12 @@ std::shared_ptr<PageResult> MysqlDao::LoadChatMsg(int thread_id, int last_messag
 			);
 		pstmt->setInt(1, thread_id);
 		pstmt->setInt(2, last_message_id);
-		pstmt->setInt(3, fetch_limit);
+		pstmt->setInt(3, last_message_id);
+		pstmt->setInt(4, fetch_limit);
 
 		auto rs = std::unique_ptr<sql::ResultSet>(pstmt->executeQuery());
 
-		// 读取 fetch_limit 条记录
+		// 倒序读出（新 → 旧）
 		while (rs->next()) {
 			ChatMessage msg;
 			msg.message_id = rs->getUInt64("message_id");
@@ -947,6 +987,17 @@ std::shared_ptr<PageResult> MysqlDao::LoadChatMsg(int thread_id, int last_messag
 			msg.status = rs->getInt("status");
 			page_res->messages.push_back(std::move(msg));
 		}
+
+		// 多取的那一条说明还有更早的消息：丢掉它，置 load_more，游标停在保留部分的最旧一条
+		if (page_res->messages.size() > page_size) {
+			page_res->messages.resize(page_size);
+			page_res->load_more = true;
+		}
+		if (!page_res->messages.empty()) {
+			page_res->next_cursor = page_res->messages.front().message_id; // 倒序的头 = 升序的尾（最旧）
+		}
+		// 反转成升序给客户端（客户端按时间正序渲染）
+		std::reverse(page_res->messages.begin(), page_res->messages.end());
 
 		return page_res;
 	}

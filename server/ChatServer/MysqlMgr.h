@@ -3,6 +3,7 @@
 #include "MysqlDao.h"
 #include "Singleton.h"
 #include <vector>
+#include <map>
 #include "message.pb.h"
 
 class MysqlMgr: public Singleton<MysqlMgr>
@@ -21,6 +22,7 @@ public:
 	std::shared_ptr<UserInfo> GetUser(std::string name);
 	bool GetApplyList(int touid, std::vector<std::shared_ptr<ApplyInfo>>& applyList, int begin, int limit=10);
 	bool GetFriendList(int self_id, std::vector<std::shared_ptr<UserInfo> >& user_info);
+	bool GetUnreadSummary(int uid, std::map<int, int>& out);
 	bool GetUserThreads(int64_t userId,
 		int64_t lastId,
 		int      pageSize,

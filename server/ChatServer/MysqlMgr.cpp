@@ -59,6 +59,10 @@ bool MysqlMgr::GetFriendList(int self_id, std::vector<std::shared_ptr<UserInfo> 
 	return _dao.GetFriendList(self_id, user_info);
 }
 
+bool MysqlMgr::GetUnreadSummary(int uid, std::map<int, int>& out) {
+	return _dao.GetUnreadSummary(uid, out);
+}
+
 bool MysqlMgr::GetUserThreads(int64_t userId,
 	int64_t lastId,
 	int      pageSize,
