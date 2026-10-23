@@ -983,6 +983,44 @@ void LogicSystem::DealChatImgMsg(std::shared_ptr<CSession> session,
 		session->Send(return_str, ID_IMG_CHAT_MSG_RSP);
 		});
 
+	// 在线推送图片消息给接收方（复用 TextChatData: msgcontent=图片名）；同机直发，跨机 gRPC
+	{
+		auto& cfg = ConfigMgr::Inst();
+		auto self_name = cfg["SelfServer"]["Name"];
+		std::string to_ip_value;
+		bool b_ip = RedisMgr::GetInstance()->Get(USERIPPREFIX + std::to_string(touid), to_ip_value);
+		if (b_ip) {
+			if (to_ip_value != self_name) {
+				ImgChatMsgReq grpc_req;
+				grpc_req.set_fromuid(uid);
+				grpc_req.set_touid(touid);
+				grpc_req.set_thread_id(thread_id);
+				auto* img = grpc_req.add_imgs();
+				img->set_msgcontent(chat_msg->content);
+				img->set_unique_id(chat_msg->unique_id);
+				img->set_msg_id((int)chat_msg->message_id);
+				img->set_chat_time(chat_msg->chat_time);
+				ChatGrpcClient::GetInstance()->NotifyImgChatMsg(to_ip_value, grpc_req);
+			}
+			else {
+				Json::Value notify;
+				notify["error"] = ErrorCodes::Success;
+				notify["fromuid"] = uid;
+				notify["touid"] = touid;
+				notify["thread_id"] = thread_id;
+				Json::Value element;
+				element["content"] = chat_msg->content;
+				element["unique_id"] = chat_msg->unique_id;
+				element["message_id"] = (Json::Int64)chat_msg->message_id;
+				element["chat_time"] = chat_msg->chat_time;
+				notify["chat_datas"].append(element);
+				auto peer_session = UserMgr::GetInstance()->GetSession(touid);
+				if (peer_session) {
+					peer_session->Send(notify.toStyledString(), ID_NOTIFY_IMG_CHAT_MSG_REQ);
+				}
+			}
+		}
+	}
 }
 
 bool LogicSystem::NotifySameServer(int touid, const std::string& data, short msg_id) {

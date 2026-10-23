@@ -159,6 +159,19 @@ message DelFriendRsp {
 	int32 touid = 3;
 }
 
+message ImgChatMsgReq {
+	int32 fromuid = 1;
+	int32 touid = 2;
+	int32 thread_id = 3;
+	repeated TextChatData imgs = 4;   // 复用 TextChatData: msgcontent=图片存储名, msg_id=message_id
+}
+
+message ImgChatMsgRsp {
+	int32 error = 1;
+	int32 fromuid = 2;
+	int32 touid = 3;
+}
+
 service ChatService {
 	rpc NotifyAddFriend(AddFriendReq) returns (AddFriendRsp) {}
 	rpc RplyAddFriend(RplyFriendReq) returns (RplyFriendRsp) {}
@@ -168,4 +181,5 @@ service ChatService {
 	rpc NotifyKickUser(KickUserReq) returns (KickUserRsp){}
 	rpc NotifyReadMsg(ReadMsgReq) returns (ReadMsgRsp){}
 	rpc NotifyDelFriend(DelFriendReq) returns (DelFriendRsp){}
+	rpc NotifyImgChatMsg(ImgChatMsgReq) returns (ImgChatMsgRsp){}
 }

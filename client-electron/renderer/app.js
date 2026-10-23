@@ -139,6 +139,7 @@ window.wetalk.onFrame(({ msgid, obj }) => {
     case MSG_IDS.ID_NOTIFY_AUTH_FRIEND_REQ: onNotifyAuth(obj); break;
     case MSG_IDS.ID_LOAD_CHAT_MSG_RSP: onHistoryRsp(obj); break;
     case MSG_IDS.ID_IMG_CHAT_MSG_RSP: onImgRsp(obj); break;
+    case MSG_IDS.ID_NOTIFY_IMG_CHAT_MSG_REQ: onImgNotify(obj); break;
     case MSG_IDS.ID_DELETE_FRIEND_RSP: onDeleteFriendRsp(obj); break;
     case MSG_IDS.ID_NOTIFY_DEL_FRIEND_REQ: onNotifyDelFriend(obj); break;
     case MSG_IDS.ID_READ_MSG_RSP: break; // 已读上报回包忽略
@@ -317,6 +318,18 @@ function onNotifyRead(obj) { // 1048 对方读了我的消息
     if (m.mine && m.msg_id && m.msg_id <= obj.last_message_id && !m.read) { m.read = true; changed = true; }
   }
   if (changed && state.active === uid) renderMsgs();
+}
+
+function onImgNotify(obj) { // 1039 收到对方图片消息（消息体格式同 1019，content=图片存储名）
+  const uid = obj.fromuid;
+  if (state.threads[uid] !== undefined || state.friends.some((f) => f.uid === uid)) {
+    state.threads[uid] = obj.thread_id || state.threads[uid] || 0;
+  }
+  for (const cd of obj.chat_datas || []) {
+    pushMsg(uid, { type: 'img', mine: false, content: cd.content, time: fmtTime(cd.chat_time), unique_id: cd.unique_id, msg_id: cd.message_id });
+    fetchImage(cd.content); // 主动下载缩略图
+  }
+  if (state.active === uid) reportRead(uid); // 正在看，立即上报已读
 }
 
 /* ---------------- 删除好友（1043/1045） ---------------- */

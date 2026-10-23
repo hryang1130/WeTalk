@@ -39,6 +39,8 @@ using message::ReadMsgReq;
 using message::ReadMsgRsp;
 using message::DelFriendReq;
 using message::DelFriendRsp;
+using message::ImgChatMsgReq;
+using message::ImgChatMsgRsp;
 
 
 class ChatConPool {
@@ -118,6 +120,7 @@ public:
 	KickUserRsp NotifyKickUser(std::string server_ip, const KickUserReq& req);
 	ReadMsgRsp NotifyReadMsg(std::string server_ip, const ReadMsgReq& req);
 	DelFriendRsp NotifyDelFriend(std::string server_ip, const DelFriendReq& req);
+	ImgChatMsgRsp NotifyImgChatMsg(std::string server_ip, const ImgChatMsgReq& req);
 private:
 	ChatGrpcClient();
 	unordered_map<std::string, std::unique_ptr<ChatConPool>> _pools;	

@@ -1085,15 +1085,16 @@ int MysqlDao::MarkMsgRead(int thread_id, int sender_id, int recv_id, int last_me
 	auto& conn = con->_con;
 	try {
 		// 把"我收到的、来自对方的、不超过已读位置"的消息标记为已读
+		// status 可能是 UN_READ(0，文本) 或 UN_UPLOAD(3，图片)，都置为 READED(2)
 		std::unique_ptr<sql::PreparedStatement> pstmt(
 			conn->prepareStatement(
-				"UPDATE chat_message SET status = ? WHERE thread_id = ? AND sender_id = ? AND recv_id = ? AND message_id <= ? AND status = ?"));
+				"UPDATE chat_message SET status = ? WHERE thread_id = ? AND sender_id = ? AND recv_id = ? AND message_id <= ? AND status <> ?"));
 		pstmt->setInt(1, MsgStatus::READED);
 		pstmt->setInt(2, thread_id);
 		pstmt->setInt(3, sender_id);
 		pstmt->setInt(4, recv_id);
 		pstmt->setInt(5, last_message_id);
-		pstmt->setInt(6, MsgStatus::UN_READ);
+		pstmt->setInt(6, MsgStatus::READED);
 		int rows = pstmt->executeUpdate();
 		std::cout << "MarkMsgRead updated " << rows << " messages" << std::endl;
 		return rows;

@@ -27,6 +27,8 @@ using message::ReadMsgReq;
 using message::ReadMsgRsp;
 using message::DelFriendReq;
 using message::DelFriendRsp;
+using message::ImgChatMsgReq;
+using message::ImgChatMsgRsp;
 
 
 class ChatServiceImpl final: public ChatService::Service
@@ -55,6 +57,10 @@ public:
 	//删除好友跨机通知（推给被删方 touid）
 	Status NotifyDelFriend(::grpc::ServerContext* context,
 		const DelFriendReq* request, DelFriendRsp* response) override;
+
+	//图片消息跨机通知（推给接收方 touid）
+	Status NotifyImgChatMsg(::grpc::ServerContext* context,
+		const ImgChatMsgReq* request, ImgChatMsgRsp* response) override;
 
 	void RegisterServer(std::shared_ptr<CServer> pServer);
 private:

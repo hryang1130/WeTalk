@@ -178,6 +178,36 @@ Status ChatServiceImpl::NotifyDelFriend(::grpc::ServerContext* context,
 	return Status::OK;
 }
 
+Status ChatServiceImpl::NotifyImgChatMsg(::grpc::ServerContext* context,
+	const ImgChatMsgReq* request, ImgChatMsgRsp* reply) {
+	reply->set_error(ErrorCodes::Success);
+	reply->set_fromuid(request->fromuid());
+	reply->set_touid(request->touid());
+
+	// 通知图片接收方（touid）：消息体格式与 1019 文本推送一致，msgid 用 1039
+	auto session = UserMgr::GetInstance()->GetSession(request->touid());
+	if (session == nullptr) {
+		return Status::OK;
+	}
+	Json::Value rtvalue;
+	rtvalue["error"] = ErrorCodes::Success;
+	rtvalue["fromuid"] = request->fromuid();
+	rtvalue["touid"] = request->touid();
+	rtvalue["thread_id"] = request->thread_id();
+	Json::Value text_array;
+	for (auto& msg : request->imgs()) {
+		Json::Value element;
+		element["content"] = msg.msgcontent();   // 图片存储名
+		element["unique_id"] = msg.unique_id();
+		element["message_id"] = msg.msg_id();
+		element["chat_time"] = msg.chat_time();
+		text_array.append(element);
+	}
+	rtvalue["chat_datas"] = text_array;
+	session->Send(rtvalue.toStyledString(), ID_NOTIFY_IMG_CHAT_MSG_REQ);
+	return Status::OK;
+}
+
 
 bool ChatServiceImpl::GetBaseInfo(std::string base_key, int uid, std::shared_ptr<UserInfo>& userinfo)
 {
