@@ -6,7 +6,7 @@
 >
 > **部署启动流程见 [DEPLOY.md](DEPLOY.md)**（Linux 服务器部署 / 本机 Docker Desktop 两种形态 + 常见问题）。
 
-> 项目由 [llfcchat](https://github.com/secondtonone1/llfcchat)（C++ 微服务聊天系统，原作者恋恋风辰；gitee 同 commit 镜像：[tfn3147546/llfcchat](https://gitee.com/tfn3147546/llfcchat)，HEAD `4a01c4f`）与 [aceld/Lars](https://github.com/aceld/Lars)（UDP 负载均衡/服务治理框架）整合演化而来，并做了大量自研扩展——让 StatusServer 通过服务治理组件做真正的负载均衡而不是读静态配置，新增文件服务、已读回执、删好友、离线消息等完整能力。致谢两位原作者。
+> 项目由 [llfcchat](https://github.com/secondtonone1/llfcchat)（C++ 微服务聊天系统，原作者恋恋风辰；gitee 同 commit 镜像：[tfn3147546/llfcchat](https://gitee.com/tfn3147546/llfcchat)，HEAD `4a01c4f`）整合演化而来，自研了 UDP 路由治理层（route-dns / route-reporter / route-agent，设计参考 [aceld/Lars](https://github.com/aceld/Lars)），并做了大量扩展——让 StatusServer 通过治理组件做真正的负载均衡而不是读静态配置，新增文件服务、已读回执、删好友、离线消息等完整能力。致谢原作者。
 
 桌面客户端为 **Electron**（`client-electron/`，功能清单与协议见 [client-electron/README-CLIENT.md](client-electron/README-CLIENT.md)）。
 
@@ -38,7 +38,7 @@ cd client-electron && npm install && npm start
 图片收发（分片上传下载）· **文件收发**（任意格式，保留原始文件名/大小，下载弹系统另存为）·
 历史消息游标分页 · **已读回执**（跨机 gRPC 实时通知）· **删除好友**（双向+实时通知）·
 **个人资料设置**（昵称/签名）· **断线自动重连**（指数退避，恢复后补拉历史/未读，不踢回登录页）·
-服务器地址记忆。服务端还提供：Lars 负载均衡调度（8090/8091 轮换+故障剔除）、
+服务器地址记忆。服务端还提供：内置负载均衡调度（8090/8091 轮换+故障剔除）、
 ChatServer 间 gRPC 同类通知（消息/已读/删好友跨机转发）、消息持久化（`wetalk.chat_message`，断线重连后历史不丢）。
 
 > ⚠️ **从旧版本升级**：业务库已由 `llfc` 更名为 `wetalk`，MySQL 卷里的旧库不会自动迁移——需要
@@ -60,15 +60,15 @@ node test-profile.js    # /user_profile 端点联调
 
 > 图源：`docs/architecture.svg`（可直接改 SVG 里的坐标微调；`client-electron/tools/svgshot.js` 可离屏渲染成 PNG 预览）。
 
-**一条主链路**：客户端 HTTP 登录 Gate（①）→ Gate 用 gRPC 问 Status 要聊天节点（②）→ Status 经 **Lars**
-（lars-agent `get_route`，健康度由 lars-reporter 统计、路由表存在 MySQL `lars_dns.RouteData`）选出健康节点并回传 →
+**一条主链路**：客户端 HTTP 登录 Gate（①）→ Gate 用 gRPC 问 Status 要聊天节点（②）→ Status 经**路由治理层**
+（route-agent `get_route`，健康度由 route-reporter 统计、路由表存在 MySQL `wetalk_route.RouteData`）选出健康节点并回传 →
 客户端 **TCP 直连**该 ChatServer（③），此后消息/已读/心跳都走这条长连接；图片与文件不占消息通道，走独立的
 **ResourceServer 数据面**（④，分片上传 + 分片下载）。
 
 **关键设计取舍**：
 
 - **控制面与数据面分离**：Gate 只做 HTTP 无状态接入，聊天连接由 ChatServer 直接持有，文件流量由 ResourceServer 承担，互不拖累。
-- **水平扩展靠 Lars 而不是静态配置**：StatusServer 每次调度都上报调用结果，Agent 在滑动窗口里统计失败率/过载，
+- **水平扩展靠治理层而不是静态配置**：StatusServer 每次调度都上报调用结果，route-agent 在滑动窗口里统计失败率/过载，
   坏的节点自然被排除；路由表支持版本化热更新（RouteChange），加节点不用改代码。
 - **跨机一致性靠 gRPC peer 通知**：两个 ChatServer 之间用 gRPC 转发文本/图片/已读/删好友通知，保证用户在任意节点都实时收到。
 - **离线消息靠 MySQL 兜底**：消息先落 `chat_message`（`status=0` 未读），登录时下发 `unread_list`，重连/重登都不丢。
@@ -79,9 +79,9 @@ node test-profile.js    # /user_profile 端点联调
 | --- | --- | --- |
 | `StatusServiceImpl::getChatServer()` | 读 config.ini 静态列表，返回第一个 | 优先走 `WetalkRouteClient::getHost()`（Agent 按失败率/过载窗口返回健康节点），失败才回退静态配置 |
 | 调用结果反馈 | 无 | StatusServer 每次调度成功后 `WetalkRouteClient::report()` 上报，Agent 滚动窗口统计节点健康度 |
-| 节点注册 | 写死在 config.ini | 路由写在 MySQL `lars_dns.RouteData`（modid=1, cmdid=1），支持 RouteChange 版本化热更新 |
+| 节点注册 | 写死在 config.ini | 路由写在 MySQL `wetalk_route.RouteData`（modid=1, cmdid=1），支持 RouteChange 版本化热更新 |
 | 构建 | Windows VS 工程只能本机跑 | 新增 Linux CMake 构建 + 每服务一个 Docker 镜像，compose 一键起 |
-| Lars API | agent 地址写死 127.0.0.1 | `server/common/lars/lars_api.cpp` 改为构造参数传入（容器间互访必需） |
+| 治理 API | agent 地址写死 127.0.0.1 | `server/common/route/route_api.cpp` 改为构造参数传入（容器间互访必需） |
 
 ### 基于原版的自行开发内容（本仓库 server/ 相对 GitHub 原版 llfcchat 的 diff）
 
@@ -103,13 +103,13 @@ node test-profile.js    # /user_profile 端点联调
 
 ```
 wetalk/
-├── server/                # 服务端源码（含 Linux CMake）+ common/WetalkRouteClient + common/lars（改造版路由 API）
-├── third_party/Lars/      # Lars 源码（sparse checkout，base/ 因含 Windows 非法文件名未检出，lars.proto 已补齐）
+├── server/                # 服务端源码（含 Linux CMake）+ common/WetalkRouteClient + common/route（路由治理 API）
+├── third_party/Lars/      # 治理层内部实现（vendored，sparse checkout，base/ 因含 Windows 非法文件名未检出，lars.proto 已补齐）
 ├── docker/
-│   ├── Dockerfile.service / Dockerfile.varify / Dockerfile.lars-*
+│   ├── Dockerfile.service / Dockerfile.varify / Dockerfile.route-*
 │   ├── configs/           # 每个服务的容器版 config.ini（Mysql/Redis 指向容器服务名）
-│   ├── lars/              # lars_dns / lb_agent / reporter 配置
-│   ├── mysql/init/        # lars_dns 库(含路由表) + wetalk 业务库
+│   ├── route/             # route-dns / route-agent / route-reporter 配置
+│   ├── mysql/init/        # wetalk_route 库(含路由表) + wetalk 业务库
 │   └── seed/seed.sh       # 启动后把 ChatServer 节点写进 RouteData
 ├── docker-compose.yml
 ├── docs/architecture.svg # 架构图（README 顶部引用，改图直接编辑 SVG）
@@ -124,7 +124,7 @@ cp .env.example .env
 # 编辑 .env：CHAT_ADV_IP1/2 填本机局域网 IP（客户端直连 8090/8091 用；本机联调填 127.0.0.1）
 # 编辑 docker/configs/VarifyServer/config.json：填你自己的 163 SMTP 授权码（原作者授权码已移除，不填则注册时收不到验证码邮件）
 docker compose up -d --build
-docker compose logs -f status lars-agent
+docker compose logs -f status route-agent
 ```
 
 ## 端口一览
@@ -134,12 +134,12 @@ docker compose logs -f status lars-agent
 | 8080 | GateServer（HTTP） | 客户端：登录/注册/改资料 |
 | 8090 / 8091 | ChatServer1 / 2（TCP 帧协议） | 客户端：长连接、消息、已读、心跳 |
 | 9090 | ResourceServer（TCP 分片） | 客户端：图片/文件上传下载 |
-| 8888 / 7779（UDP） | lars-agent（get_route / 上报） | StatusServer |
+| 8888 / 7779（UDP） | route-agent（get_route / 上报） | StatusServer |
 | 3306 / 6379 | MySQL / Redis | 各服务（容器内网） |
 
 - Gate（HTTP 登录注册）：`http://<host>:8080`
-- ChatServer：`<CHAT_ADV_IP>:8090 / 8091`（具体连哪个由 Status 经 Lars 决定，客户端不需要写死）
-- 观察调度结果：`docker compose logs status | grep Lars`
+- ChatServer：`<CHAT_ADV_IP>:8090 / 8091`（具体连哪个由 Status 经治理层决定，客户端不需要写死）
+- 观察调度结果：`docker compose logs status | grep Route`
 
 ## 已知问题 / TODO
 
@@ -160,26 +160,26 @@ docker compose logs -f status lars-agent
 
 ### 服务端 / 基础设施
 
-- [ ] 上游 lars_api `get_route` 的 IP 字节序转换疑似有双重转换（ntohl 后直接赋给 s_addr），已在 `common/lars/lars_api.cpp` 保持上游行为并标注；首次联调时优先用 `get_route` 打印验证。
-- [ ] Lars 上游 `dns_route.cpp` 用 `atoi` 读 serverip（>2^31 会溢出），建议后续改 `strtoul`。
+- [ ] vendored 实现 `get_route` 的 IP 字节序转换疑似有双重转换（ntohl 后直接赋给 s_addr），已在 `common/route/route_api.cpp` 保持原行为并标注；首次联调时优先用 `get_route` 打印验证。
+- [ ] vendored `dns_route.cpp` 用 `atoi` 读 serverip（>2^31 会溢出），建议后续改 `strtoul`。
 - [ ] protobuf 生成文件（message.pb.cc 等）是老版本 protoc 产物，Linux 构建统一用 CMake 重新生成，Windows 侧如混用需注意版本。
 - [x] ChatServer2 源码目录已归档到 `server/_attic/ChatServer2-outdated/`（它是**不含后续自研修改的旧拷贝**，构建一律用 ChatServer + 两份 config.ini，见 compose chat1/chat2）。
 - [x] VarifyServer 补了 config.ini；ResourceServer 为自建服务，其配置项已含在本目录 `docker/configs/`。
 
 ## 容器化联调注意（inet_aton 坑）
 
-上游 `lars_reactor` 的 `tcp_client`/`udp_client` 用 `inet_aton()` 解析地址，**不能填容器服务名**。本工程处理：
+vendored reactor 的 `tcp_client`/`udp_client` 用 `inet_aton()` 解析地址，**不能填容器服务名**。本工程处理：
 
-- `docker/lars/lars_lb_agent.conf` 的 `[reporter]`/`[dnsserver]` 直接写 compose 固定 IP（172.20.0.21 / 172.20.0.20）；`lars_dns`/`lars_reporter` 连 MySQL 走 libmysqlclient 自带域名解析，服务名可用。
-- `docker/configs/StatusServer/config.ini` 的 `[Lars] AgentIp` 写 172.20.0.22。
-- `common/lars/lars_api.cpp`（改造版）已升级：点分 IP 直接用，主机名走 `getaddrinfo`，解析失败显式报错退出。
+- `docker/route/route_agent.conf` 的 `[reporter]`/`[dnsserver]` 直接写 compose 固定 IP（172.20.0.21 / 172.20.0.20）；route-dns/route-reporter 连 MySQL 走 libmysqlclient 自带域名解析，服务名可用。
+- `docker/configs/StatusServer/config.ini` 的 `[Route] AgentIp` 写 172.20.0.22。
+- `common/route/route_api.cpp`（自研治理 API）已升级：点分 IP 直接用，主机名走 `getaddrinfo`，解析失败显式报错退出。
 
 ## 构建修复记录（2026-10-23 整合收尾）
 
 | 问题 | 修复 |
 | --- | --- |
 | `common/WetalkRouteClient.cpp`（原 LarsClient.cpp）未被任何 target 编译，status 链接必失败 | CMake 新增 `wetalk_common` 静态库并链接进全部服务 |
-| `lars_api` 库同时编译改造版与上游 `lars_api.cpp`，同名类重复符号 | 只编译改造版；上游头文件不再参与 |
+| `route_api` 库同时编译自研版与 vendored `lars_api.cpp`，同名类重复符号 | 只编译自研版；vendored 头文件不再参与 |
 | `WetalkRouteClient.cpp` 缺 `ConfigMgr.h` include | 已补（common/ 与各服务目录的 ConfigMgr 内容一致，实现由服务自身提供） |
 | `Dockerfile.service` 产物路径 `build/${SERVICE}/${SERVICE}` 错、COPY 不存在的 config | 改为 `build/${SERVICE}`；config 一律由 compose 卷挂载（chat1/chat2 共用 chat 镜像） |
 | compose `depends_on` 混用 map/list 语法非法 | 统一 map 形式 |

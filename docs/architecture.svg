@@ -9,7 +9,7 @@
 
   <style>
     .box { fill:#ffffff; stroke:#d8d2cc; stroke-width:1.2; rx:10; }
-    .lars { fill:#f6f3f0; stroke:#d8d2cc; stroke-width:1.2; }
+    .route { fill:#f6f3f0; stroke:#d8d2cc; stroke-width:1.2; }
     .t { font-size:14px; font-weight:600; fill:#1c1a18; }
     .s { font-size:11px; fill:#57524d; }
     .lbl { font-size:10.5px; fill:#57524d; }
@@ -52,7 +52,7 @@
   <!-- Gate -> Varify（Resource 右侧下行） -->
   <path class="grpc" d="M390 160 L470 160 L470 405 L496 405" marker-end="url(#mW)"/>
   <text class="lbl" transform="rotate(-90 461 285)" x="461" y="285" text-anchor="middle">gRPC 验证码</text>
-  <!-- Status -> lars-agent / lars-reporter -->
+  <!-- Status -> route-agent / route-reporter -->
   <path class="udp" d="M585 160 L585 236" marker-end="url(#mA)"/>
   <text class="lbl" x="593" y="200">UDP 8888 get_route</text>
   <path class="udp" d="M670 140 L706 140 L706 262 L736 262" marker-end="url(#mA)"/>
@@ -60,7 +60,7 @@
   <!-- reporter -> dns -->
   <path class="store" d="M910 275 L976 275" marker-end="url(#mN)"/>
   <text class="lbl" x="943" y="265" text-anchor="middle">健康度</text>
-  <!-- dns -> MySQL(lars_dns) -->
+  <!-- dns -> MySQL(wetalk_route) -->
   <path class="store" d="M1065 310 L1065 395 L890 395 L890 426" marker-end="url(#mN)"/>
   <text class="lbl" x="1010" y="388" text-anchor="middle">路由表 RouteData</text>
   <!-- Chat -> MySQL（走 reporter 与 dns 之间的走廊，避免穿过盒子） -->
@@ -85,7 +85,7 @@
   <rect class="box" x="500" y="70" width="170" height="90" rx="10"/>
   <text x="585" y="105" class="t" text-anchor="middle">StatusServer</text>
   <text x="585" y="123" class="s" text-anchor="middle">分配 ChatServer 节点</text>
-  <text x="585" y="139" class="s" text-anchor="middle">经 Lars 负载均衡调度</text>
+  <text x="585" y="139" class="s" text-anchor="middle">内置负载均衡调度</text>
   <!-- Chat1 -->
   <rect class="box" x="880" y="40" width="170" height="75" rx="10"/>
   <text x="965" y="68" class="t" text-anchor="middle">ChatServer1</text>
@@ -106,17 +106,17 @@
   <text x="585" y="398" class="t" text-anchor="middle">VarifyServer</text>
   <text x="585" y="416" class="s" text-anchor="middle">Node.js · gRPC</text>
   <text x="585" y="431" class="s" text-anchor="middle">SMTP 邮件验证码</text>
-  <!-- Lars 三件套 -->
-  <rect class="lars" x="500" y="240" width="170" height="70" rx="10"/>
-  <text x="585" y="268" class="t" text-anchor="middle">lars-agent</text>
+  <!-- 路由治理三件套 -->
+  <rect class="route" x="500" y="240" width="170" height="70" rx="10"/>
+  <text x="585" y="268" class="t" text-anchor="middle">route-agent</text>
   <text x="585" y="286" class="s" text-anchor="middle">按失败率/过载窗口</text>
   <text x="585" y="301" class="s" text-anchor="middle">返回健康节点</text>
-  <rect class="lars" x="740" y="240" width="170" height="70" rx="10"/>
-  <text x="825" y="268" class="t" text-anchor="middle">lars-reporter</text>
+  <rect class="route" x="740" y="240" width="170" height="70" rx="10"/>
+  <text x="825" y="268" class="t" text-anchor="middle">route-reporter</text>
   <text x="825" y="286" class="s" text-anchor="middle">滚动窗口统计</text>
   <text x="825" y="301" class="s" text-anchor="middle">节点调用健康度</text>
-  <rect class="lars" x="980" y="240" width="170" height="70" rx="10"/>
-  <text x="1065" y="268" class="t" text-anchor="middle">lars-dns</text>
+  <rect class="route" x="980" y="240" width="170" height="70" rx="10"/>
+  <text x="1065" y="268" class="t" text-anchor="middle">route-dns</text>
   <text x="1065" y="286" class="s" text-anchor="middle">路由表 + 版本化热更新</text>
   <text x="1065" y="301" class="s" text-anchor="middle">RouteChange 通知</text>
   <!-- MySQL -->
@@ -124,7 +124,7 @@
   <text x="790" y="456" class="t" text-anchor="middle">MySQL</text>
   <text x="790" y="474" class="s" text-anchor="middle">wetalk：用户 / 好友 / 会话</text>
   <text x="790" y="489" class="s" text-anchor="middle">chat_message 消息持久化</text>
-  <text x="790" y="504" class="s" text-anchor="middle">lars_dns：RouteData 路由表</text>
+  <text x="790" y="504" class="s" text-anchor="middle">wetalk_route：RouteData 路由表</text>
   <!-- Redis -->
   <rect class="box" x="960" y="430" width="190" height="90" rx="10" fill="#fbfaf9"/>
   <text x="1055" y="456" class="t" text-anchor="middle">Redis</text>
@@ -138,8 +138,8 @@
     <line x1="0" y1="20" x2="28" y2="20" class="http"/><text x="34" y="24" class="lbl">HTTP</text>
     <line x1="90" y1="20" x2="118" y2="20" class="grpc"/><text x="124" y="24" class="lbl">gRPC</text>
     <line x1="180" y1="20" x2="208" y2="20" class="tcp"/><text x="214" y="24" class="lbl">TCP 长连接</text>
-    <line x1="0" y1="42" x2="28" y2="42" class="udp"/><text x="34" y="46" class="lbl">UDP（Lars 调度/上报）</text>
+    <line x1="0" y1="42" x2="28" y2="42" class="udp"/><text x="34" y="46" class="lbl">UDP（治理调度/上报）</text>
     <line x1="180" y1="42" x2="208" y2="42" class="store"/><text x="214" y="46" class="lbl">存储 / 配置 / 调度</text>
   </g>
-  <text x="590" y="552" class="lbl" fill="#948d86" text-anchor="middle">登录：① HTTP 进 Gate → ② Status 经 Lars 选出健康节点 → ③ 客户端 TCP 直连该 ChatServer；图片/文件走 ④ 独立数据面 ResourceServer</text>
+  <text x="590" y="552" class="lbl" fill="#948d86" text-anchor="middle">登录：① HTTP 进 Gate → ② Status 经治理层选出健康节点 → ③ 客户端 TCP 直连该 ChatServer；图片/文件走 ④ 独立数据面 ResourceServer</text>
 </svg>

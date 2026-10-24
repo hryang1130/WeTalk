@@ -1,6 +1,6 @@
-#include "lars_api.h"
+#include "route_api.h"
 #include "lars.pb.h"
-#include "message.h" // lars_reactor: msg_head / MESSAGE_HEAD_LEN
+#include "message.h" // vendored reactor: msg_head / MESSAGE_HEAD_LEN
 #include <string.h>
 #include <sys/socket.h>
 #include <sys/types.h>
@@ -12,8 +12,8 @@
 #include <thread>
 #include <chrono>
 
-// 改造点：上游用 inet_aton 只认点分 IP；这里点分 IP 直接用，
-// 非点分（容器服务名/域名）走 getaddrinfo 解析，解析失败直接报错退出（比静默 0.0.0.0 好排查）
+// agent 地址解析：点分 IP 直接用；非点分（容器服务名/域名）走 getaddrinfo，
+// 解析失败直接报错退出（比静默 0.0.0.0 好排查）
 static bool resolve_agent(const std::string& host, struct in_addr* out)
 {
     if (inet_pton(AF_INET, host.c_str(), out) == 1) return true;
@@ -27,13 +27,13 @@ static bool resolve_agent(const std::string& host, struct in_addr* out)
     return true;
 }
 
-lars_client::lars_client(const std::string& agent_ip, short udp_base_port) : _seqid(0)
+route_client::route_client(const std::string& agent_ip, short udp_base_port) : _seqid(0)
 {
     struct sockaddr_in servaddr;
     bzero(&servaddr, sizeof(servaddr));
     servaddr.sin_family = AF_INET;
     if (!resolve_agent(agent_ip, &servaddr.sin_addr)) {
-        fprintf(stderr, "lars_client: cannot resolve agent address '%s'\n", agent_ip.c_str());
+        fprintf(stderr, "route_client: cannot resolve agent address '%s'\n", agent_ip.c_str());
         exit(1);
     }
 
@@ -52,12 +52,12 @@ lars_client::lars_client(const std::string& agent_ip, short udp_base_port) : _se
     }
 }
 
-lars_client::~lars_client()
+route_client::~route_client()
 {
     for (int i = 0; i < 3; ++i) close(_sockfd[i]);
 }
 
-int lars_client::reg_init(int modid, int cmdid)
+int route_client::reg_init(int modid, int cmdid)
 {
     route_set route;
     int retry_cnt = 0;
@@ -71,7 +71,7 @@ int lars_client::reg_init(int modid, int cmdid)
     return lars::RET_SUCC;
 }
 
-int lars_client::get_route(int modid, int cmdid, route_set& route)
+int route_client::get_route(int modid, int cmdid, route_set& route)
 {
     lars::GetRouteRequest req;
     req.set_modid(modid);
@@ -101,13 +101,13 @@ int lars_client::get_route(int modid, int cmdid, route_set& route)
     for (int i = 0; i < rsp.host_size(); i++) {
         const lars::HostInfo& host = rsp.host(i);
         struct in_addr inaddr;
-        inaddr.s_addr = ntohl(host.ip());   // 与上游 api 行为保持一致
+        inaddr.s_addr = ntohl(host.ip());   // 与 vendored reactor 的字节序约定保持一致
         route.push_back(ip_port(inet_ntoa(inaddr), host.port()));
     }
     return lars::RET_SUCC;
 }
 
-int lars_client::get_host(int modid, int cmdid, std::string& ip, int& port)
+int route_client::get_host(int modid, int cmdid, std::string& ip, int& port)
 {
     uint32_t seq = _seqid++;
     lars::GetHostRequest req;
@@ -138,7 +138,7 @@ int lars_client::get_host(int modid, int cmdid, std::string& ip, int& port)
 
     // 必须检查 retcode：agent 无路由/过载时回 RET_NOEXIST/RET_OVERLOAD，
     // 此时 host 字段是 proto3 默认值(ip=0,port=0)，若不检查会把 "0.0.0.0:0"
-    // 当成有效结果返回（上游 api 也是先判 retcode 再取 host）
+    // 当成有效结果返回（曾导致全新部署时所有登录失败）
     if (rsp.retcode() != lars::RET_SUCC) return rsp.retcode();
 
     const lars::HostInfo& host = rsp.host();
@@ -149,13 +149,13 @@ int lars_client::get_host(int modid, int cmdid, std::string& ip, int& port)
     return lars::RET_SUCC;
 }
 
-void lars_client::report(int modid, int cmdid, const std::string& ip, int port, int retcode)
+void route_client::report(int modid, int cmdid, const std::string& ip, int port, int retcode)
 {
     lars::ReportRequest req;
     req.set_modid(modid);
     req.set_cmdid(cmdid);
 
-    // 本仓库 vendored Lars 的 proto：ReportRequest = {modid, cmdid, host(单个), retcode}
+    // vendored proto：ReportRequest = {modid, cmdid, host(单个), retcode}
     struct in_addr inaddr;
     inet_aton(ip.c_str(), &inaddr);
     lars::HostInfo* host = req.mutable_host();

@@ -106,11 +106,12 @@ thread_pool::thread_pool(int thread_cnt)
 
 thread_queue<task_msg>* thread_pool::get_thread()
 {
-    if (_index == _thread_cnt) {
-        _index = 0; 
+    // WeTalk patch: 上游漏了 _index 自增，所有新连接永远派发给 0号线程，
+    // 一旦该线程阻塞整个 server 就停摆。改为真正的 round-robin。
+    if (_index >= _thread_cnt) {
+        _index = 0;
     }
-
-    return _queues[_index];
+    return _queues[_index++];
 }
 
 void thread_pool::send_task(task_func func, void *args)

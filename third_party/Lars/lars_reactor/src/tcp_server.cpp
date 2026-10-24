@@ -94,7 +94,10 @@ tcp_server::tcp_server(event_loop *loop, const char *ip, uint16_t port)
     }
 
     //1. 创建socket
-    _sockfd = socket(AF_INET, SOCK_STREAM /*| SOCK_NONBLOCK*/ | SOCK_CLOEXEC, IPPROTO_TCP);
+    // WeTalk patch: 上游注释掉了 SOCK_NONBLOCK，导致 listen fd 是阻塞的，
+    // do_accept() 的 while(true) 会永久卡在 accept() 里，主 loop 从此不再
+    // 处理 epoll 事件（实测 wchan=inet_csk_accept）。必须保持非阻塞。
+    _sockfd = socket(AF_INET, SOCK_STREAM | SOCK_NONBLOCK | SOCK_CLOEXEC, IPPROTO_TCP);
     if (_sockfd == -1) {
         fprintf(stderr, "tcp_server::socket()\n");
         exit(1);

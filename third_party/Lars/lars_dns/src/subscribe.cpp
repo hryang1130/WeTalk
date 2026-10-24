@@ -10,6 +10,13 @@ pthread_once_t SubscribeList::_once = PTHREAD_ONCE_INIT;
 
 SubscribeList::SubscribeList()
 {
+    // WeTalk patch: 上游构造函数是空的，而 `new SubscribeList()` 对
+    // 带用户自定义构造函数的类不会做零初始化，导致两个 pthread_mutex_t
+    // 是堆上的垃圾内存——若垃圾值恰好呈"已锁"状态，后续 subscribe/publish
+    // 的 pthread_mutex_lock 会永久阻塞在无人唤醒的 futex 上（fresh-deploy
+    // 实测 dns 卡死、路由全挂的根因）。必须显式初始化。
+    pthread_mutex_init(&_book_list_lock, NULL);
+    pthread_mutex_init(&_push_list_lock, NULL);
 }
 
 //订阅

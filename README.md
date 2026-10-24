@@ -6,7 +6,7 @@
 >
 > **Deployment guide: [DEPLOY.md](DEPLOY.md)** (Linux server / local Docker Desktop, plus FAQ).
 
-> The project evolved from an integration of [llfcchat](https://github.com/secondtonone1/llfcchat) (a C++ microservice chat system by 恋恋风辰) and [aceld/Lars](https://github.com/aceld/Lars) (a UDP load-balancing / service-governance framework), with substantial original work on top: StatusServer now performs real load balancing through the governance framework instead of reading a static list, and the project adds a file service, read receipts, friend removal, offline messaging and more. Credits to the original authors.
+> WeTalk started as an integration of [llfcchat](https://github.com/secondtonone1/llfcchat) (a C++ microservice chat system by 恋恋风辰), with a self-built UDP route-governance layer (route-dns / route-reporter / route-agent, designed after [aceld/Lars](https://github.com/aceld/Lars)) and substantial original work on top: real load balancing, a file service, read receipts, friend removal, offline messaging and more. Credits to the original authors.
 
 The desktop client is **Electron** (`client-electron/`, feature list & protocol map in [client-electron/README-CLIENT.md](client-electron/README-CLIENT.md)).
 
@@ -59,8 +59,8 @@ node test-profile.js    # /user_profile endpoint
 > Source: `docs/architecture.svg` (edit the SVG directly; `client-electron/tools/svgshot.js` renders it offscreen to PNG for preview).
 
 **The main path**: the client logs in over HTTP at the Gate (①) → the Gate asks Status for a chat node via gRPC (②) →
-Status picks a healthy node through the governance framework (agent `get_route`; health tracked by the reporter; the route
-table lives in MySQL `lars_dns.RouteData`) → the client opens a **direct TCP connection** to that ChatServer (③), and all
+Status picks a healthy node through the built-in governance layer (agent `get_route`; health tracked by the reporter; the route
+table lives in MySQL `wetalk_route.RouteData`) → the client opens a **direct TCP connection** to that ChatServer (③), and all
 messages / receipts / heartbeats flow over that long connection. Images and files bypass the message channel entirely via
 the dedicated **ResourceServer data plane** (④, chunked upload + chunked download).
 
@@ -82,9 +82,9 @@ the dedicated **ResourceServer data plane** (④, chunked upload + chunked downl
 | --- | --- | --- |
 | `StatusServiceImpl::getChatServer()` | reads a static list from config.ini, returns the first | prefers `WetalkRouteClient::getHost()` (agent returns healthy nodes by failure/overload window), falls back to static config |
 | Call-result feedback | none | StatusServer reports every successful scheduling via `WetalkRouteClient::report()`; the agent tracks node health in a sliding window |
-| Node registration | hard-coded in config.ini | routes live in MySQL `lars_dns.RouteData` (modid=1, cmdid=1), with versioned hot updates (RouteChange) |
+| Node registration | hard-coded in config.ini | routes live in MySQL `wetalk_route.RouteData` (modid=1, cmdid=1), with versioned hot updates (RouteChange) |
 | Build | Windows VS project, local machine only | Linux CMake build + one Docker image per service, `compose up` in one command |
-| Governance API | agent address hard-coded 127.0.0.1 | `server/common/lars/lars_api.cpp` now takes addresses via constructor parameters (required for container networking) |
+| Governance API | agent address hard-coded 127.0.0.1 | `server/common/route/route_api.cpp` now takes addresses via constructor parameters (required for container networking) |
 
 ### Original work in this repo (diff of `server/` vs. upstream llfcchat)
 
@@ -105,13 +105,13 @@ the dedicated **ResourceServer data plane** (④, chunked upload + chunked downl
 
 ```
 wetalk/
-├── server/                # server sources (with Linux CMake) + common/WetalkRouteClient + common/lars (patched route API)
-├── third_party/Lars/      # upstream governance framework (sparse checkout; base/ skipped for invalid Windows filenames, lars.proto restored)
+├── server/                # server sources (with Linux CMake) + common/WetalkRouteClient + common/route (governance API)
+├── third_party/Lars/      # vendored governance internals (sparse checkout; base/ skipped for invalid Windows filenames, lars.proto restored)
 ├── docker/
-│   ├── Dockerfile.service / Dockerfile.varify / Dockerfile.lars-*
+│   ├── Dockerfile.service / Dockerfile.varify / Dockerfile.route-*
 │   ├── configs/           # container config.ini per service (MySQL/Redis point at compose service names)
-│   ├── lars/              # lars_dns / lb_agent / reporter configs
-│   ├── mysql/init/        # lars_dns DB (route table) + wetalk business DB
+│   ├── route/             # route-dns / route-agent / route-reporter configs
+│   ├── mysql/init/        # wetalk_route DB (route table) + wetalk business DB
 │   └── seed/seed.sh       # writes ChatServer nodes into RouteData after startup
 ├── docker-compose.yml
 ├── docs/architecture.svg  # architecture diagram (referenced above; edit the SVG directly)
@@ -126,7 +126,7 @@ cp .env.example .env
 # Edit .env: set CHAT_ADV_IP1/2 to your LAN IP (used by the client to reach 8090/8091; 127.0.0.1 for local dev)
 # Edit docker/configs/VarifyServer/config.json: your own 163 SMTP auth code (registration emails fail without it)
 docker compose up -d --build
-docker compose logs -f status lars-agent
+docker compose logs -f status route-agent
 ```
 
 > **Upgrading from an older deployment**: the business database was renamed `llfc` → `wetalk`. The old database inside the
@@ -140,12 +140,12 @@ docker compose logs -f status lars-agent
 | 8080 | GateServer (HTTP) | client: login / register / profile |
 | 8090 / 8091 | ChatServer1 / 2 (TCP frame protocol) | client: long connection, messages, receipts, heartbeat |
 | 9090 | ResourceServer (TCP chunked) | client: image / file upload & download |
-| 8888 / 7779 (UDP) | lars-agent (get_route / report) | StatusServer |
+| 8888 / 7779 (UDP) | route-agent (get_route / report) | StatusServer |
 | 3306 / 6379 | MySQL / Redis | services (internal network) |
 
 - Gate (HTTP login/register): `http://<host>:8080`
-- ChatServer: `<CHAT_ADV_IP>:8090 / 8091` (which one is decided by Status via the governance framework — the client never hard-codes it)
-- Watch scheduling: `docker compose logs status | grep Lars`
+- ChatServer: `<CHAT_ADV_IP>:8090 / 8091` (which one is decided by Status via the governance layer — the client never hard-codes it)
+- Watch scheduling: `docker compose logs status | grep Route`
 
 ## Known issues / TODO
 
@@ -166,27 +166,27 @@ docker compose logs -f status lars-agent
 
 ### Server / infrastructure
 
-- [ ] Upstream `lars_api get_route` seems to double-convert IP byte order (ntohl result assigned straight into `s_addr`); kept upstream behavior in `common/lars/lars_api.cpp` with a note — verify with `get_route` printing on first bring-up.
-- [ ] Upstream `dns_route.cpp` reads serverip with `atoi` (overflows above 2^31); suggest `strtoul`.
+- [ ] Vendored `get_route` seems to double-convert IP byte order (ntohl result assigned straight into `s_addr`); kept upstream behavior in `common/route/route_api.cpp` with a note — verify with `get_route` printing on first bring-up.
+- [ ] Vendored `dns_route.cpp` reads serverip with `atoi` (overflows above 2^31); suggest `strtoul`.
 - [ ] Generated protobuf files (message.pb.cc etc.) are from an old protoc; the Linux build regenerates them via CMake — mind versions if mixing with Windows builds.
 - [x] The ChatServer2 source directory is archived at `server/_attic/ChatServer2-outdated/` (an **outdated copy without the later changes**; always build via ChatServer + the two config.ini files, see compose chat1/chat2).
 - [x] VarifyServer got a config.ini; ResourceServer is a self-built service with its config in `docker/configs/`.
 
 ## Containerization caveat (inet_aton)
 
-The upstream `lars_reactor` `tcp_client`/`udp_client` parse addresses with `inet_aton()` and **cannot resolve compose service
+The vendored reactor's `tcp_client`/`udp_client` parse addresses with `inet_aton()` and **cannot resolve compose service
 names**. How this repo handles it:
 
-- `docker/lars/lars_lb_agent.conf` `[reporter]`/`[dnsserver]` use fixed compose IPs (172.20.0.21 / 172.20.0.20); `lars_dns`/`lars_reporter` reach MySQL through libmysqlclient's own resolver, so service names work there.
-- `docker/configs/StatusServer/config.ini` `[Lars] AgentIp` is 172.20.0.22.
-- `common/lars/lars_api.cpp` (patched) was upgraded: dotted IPs pass through, hostnames go through `getaddrinfo`, and resolution failure exits with an explicit error.
+- `docker/route/route_agent.conf` `[reporter]`/`[dnsserver]` use fixed compose IPs (172.20.0.21 / 172.20.0.20); route-dns/route-reporter reach MySQL through libmysqlclient's own resolver, so service names work there.
+- `docker/configs/StatusServer/config.ini` `[Route] AgentIp` is 172.20.0.22.
+- `common/route/route_api.cpp` (self-built governance API) was upgraded: dotted IPs pass through, hostnames go through `getaddrinfo`, and resolution failure exits with an explicit error.
 
 ## Build fix log (integration wrap-up, 2026-10-23)
 
 | Problem | Fix |
 | --- | --- |
 | `common/WetalkRouteClient.cpp` (formerly LarsClient.cpp) was compiled by no target; status link always failed | CMake gained the `wetalk_common` static library, linked into every service |
-| the `lars_api` library compiled both the patched and the upstream `lars_api.cpp`, duplicating symbols | only the patched version is compiled; upstream headers no longer participate |
+| the `route_api` library compiled both the self-built and the vendored `lars_api.cpp`, duplicating symbols | only the self-built version is compiled; vendored headers no longer participate |
 | `WetalkRouteClient.cpp` missing the `ConfigMgr.h` include | added (common/ and per-service ConfigMgr are identical in content; implementations are provided per service) |
 | `Dockerfile.service` had wrong output path `build/${SERVICE}/${SERVICE}` and copied nonexistent configs | fixed to `build/${SERVICE}`; configs are always mounted by compose (chat1/chat2 share the chat image) |
 | compose `depends_on` mixed map/list syntax (invalid) | unified to map form |

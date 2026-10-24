@@ -23,7 +23,7 @@ find_program(GRPC_CPP_PLUGIN grpc_cpp_plugin REQUIRED)
 
 set(LARS_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../third_party/Lars)
 
-# ---------- Lars 协议 (base/proto/lars.proto) ----------
+# ---------- 路由治理协议 (vendored base/proto/lars.proto，协议包名 lars) ----------
 set(LARS_PROTO_SRC ${CMAKE_CURRENT_BINARY_DIR}/lars.pb.cc)
 set(LARS_PROTO_HDR ${CMAKE_CURRENT_BINARY_DIR}/lars.pb.h)
 add_custom_command(
@@ -37,21 +37,21 @@ add_library(lars_proto STATIC ${LARS_PROTO_SRC})
 target_include_directories(lars_proto PUBLIC ${CMAKE_CURRENT_BINARY_DIR})
 target_link_libraries(lars_proto PUBLIC protobuf::libprotobuf)
 
-# ---------- Lars reactor 网络库 ----------
+# ---------- 路由治理 reactor 网络库（vendored，勿改动） ----------
 file(GLOB LARS_REACTOR_SRC ${LARS_DIR}/lars_reactor/src/*.cpp)
 add_library(lars_reactor STATIC ${LARS_REACTOR_SRC})
 target_include_directories(lars_reactor PUBLIC ${LARS_DIR}/lars_reactor/include)
 target_link_libraries(lars_reactor PUBLIC pthread dl protobuf::libprotobuf)
 
-# ---------- 可配置版 Lars API（只编译我们这版，勿与上游 api/cpp/lars_api 同链，符号重复） ----------
-add_library(lars_api STATIC common/lars/lars_api.cpp)
-target_include_directories(lars_api PUBLIC common/lars ${CMAKE_CURRENT_BINARY_DIR})
-target_link_libraries(lars_api PUBLIC lars_reactor lars_proto)
+# ---------- WeTalk 路由治理 API（route_client，勿与 vendored api/cpp 同链，符号重复） ----------
+add_library(route_api STATIC common/route/route_api.cpp)
+target_include_directories(route_api PUBLIC common/route ${CMAKE_CURRENT_BINARY_DIR})
+target_link_libraries(route_api PUBLIC lars_reactor lars_proto)
 
-# ---------- WeTalk 公共组件（WetalkRouteClient：Lars 路由的线程安全封装） ----------
+# ---------- WeTalk 公共组件（WetalkRouteClient：路由治理的线程安全封装） ----------
 add_library(wetalk_common STATIC common/WetalkRouteClient.cpp)
 target_include_directories(wetalk_common PUBLIC common)
-target_link_libraries(wetalk_common PUBLIC lars_api)
+target_link_libraries(wetalk_common PUBLIC route_api)
 
 # ---------- 每个服务的 protobuf/grpc 生成 ----------
 function(wetalk_gen_proto SERVICE_DIR OUT_SRCS)
@@ -93,7 +93,7 @@ function(add_wetalk_service NAME)
         Boost::system Boost::date_time Boost::filesystem Boost::uuid
         protobuf::libprotobuf grpc++ grpc
         ${HIREDIS_LIBRARIES} ${MYSQLCPPCONN_LIB} ${JSONCPP_LIBRARIES}
-        wetalk_common lars_api Threads::Threads)
+        wetalk_common route_api Threads::Threads)
 endfunction()
 
 add_wetalk_service(gate      DIR ${CMAKE_CURRENT_SOURCE_DIR}/GateServer)

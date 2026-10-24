@@ -1,9 +1,9 @@
 #include "WetalkRouteClient.h"
-#include "lars/lars_api.h"
+#include "route/route_api.h"
 #include "ConfigMgr.h"
 #include <iostream>
 
-// pimpl：隔离 lars_api 头文件依赖
+// pimpl：隔离 route_api 头文件依赖
 class WetalkRouteClientImpl
 {
 public:
@@ -17,7 +17,7 @@ public:
     { _client.report(modid, cmdid, ip, port, ret); }
 
 private:
-    lars_client _client;
+    route_client _client;
 };
 
 WetalkRouteClient& WetalkRouteClient::Instance()
@@ -35,15 +35,15 @@ void WetalkRouteClient::Init(const std::string& agent_ip, short agent_udp_base_p
         _cmdid = cmdid;
         int ret = _impl->regInit(modid, cmdid);
         if (ret != 0) {
-            std::cerr << "[Lars] reg_init(" << modid << "," << cmdid
+            std::cerr << "[Route] reg_init(" << modid << "," << cmdid
                       << ") no route yet, will retry on getHost" << std::endl;
         }
         _enabled = true;
-        std::cout << "[Lars] enabled: agent=" << agent_ip << ":" << agent_udp_base_port
+        std::cout << "[Route] enabled: agent=" << agent_ip << ":" << agent_udp_base_port
                   << " modid=" << modid << " cmdid=" << cmdid << std::endl;
     }
     catch (const std::exception& e) {
-        std::cerr << "[Lars] init failed: " << e.what() << " (fallback to static config)" << std::endl;
+        std::cerr << "[Route] init failed: " << e.what() << " (fallback to static config)" << std::endl;
         _enabled = false;
     }
 }
@@ -51,15 +51,15 @@ void WetalkRouteClient::Init(const std::string& agent_ip, short agent_udp_base_p
 void WetalkRouteClient::InitFromConfig()
 {
     auto& cfg = ConfigMgr::Inst();
-    std::string enable = cfg["Lars"]["Enable"];
+    std::string enable = cfg["Route"]["Enable"];
     if (enable != "true" && enable != "True" && enable != "1") {
-        std::cout << "[Lars] disabled, use static chatservers config" << std::endl;
+        std::cout << "[Route] disabled, use static chatservers config" << std::endl;
         return;
     }
-    Init(cfg["Lars"]["AgentIp"],
-         (short)atoi(cfg["Lars"]["AgentPort"].c_str()),
-         atoi(cfg["Lars"]["Modid"].c_str()),
-         atoi(cfg["Lars"]["Cmdid"].c_str()));
+    Init(cfg["Route"]["AgentIp"],
+         (short)atoi(cfg["Route"]["AgentPort"].c_str()),
+         atoi(cfg["Route"]["Modid"].c_str()),
+         atoi(cfg["Route"]["Cmdid"].c_str()));
 }
 
 bool WetalkRouteClient::getHost(std::string& ip, int& port)

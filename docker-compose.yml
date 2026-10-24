@@ -21,10 +21,14 @@ services:
         ipv4_address: 172.20.0.10
     healthcheck:
       # 不能只 ping：MySQL 初始化临时实例也会响应 ping。
-      # 必须等 01-lars-dns / 02-wetalk / 03-chat-tables 三个 init SQL 全部导入完成
-      #（lars_dns 和 wetalk 库都能 USE）才算 healthy，否则 lars-dns/reporter/gate
+      # 必须等 01-route-dns / 02-wetalk / 03-chat-tables 三个 init SQL 全部导入完成
+      #（wetalk_route 和 wetalk 库都能 USE）才算 healthy，否则 route-dns/reporter/gate
       # 会在 down -v 后的首次启动连不上库直接崩掉。
-      test: ["CMD-SHELL", "mysql -uroot -p123456 -N -e 'USE lars_dns; USE wetalk; SELECT 1;' >/dev/null 2>&1"]
+      # 且必须走 TCP（-h127.0.0.1）：mysql 官方镜像的初始化临时实例是
+      # --skip-networking（仅 socket），socket 版 healthcheck 会在临时实例
+      # 阶段就误报 healthy，让 route-dns 撞进 mysql 启动窗口而卡死
+      #（fresh-deploy 实测必现；数据在库但 dns 无响应）。
+      test: ["CMD-SHELL", "mysql -h127.0.0.1 -uroot -p123456 -N -e 'USE wetalk_route; USE wetalk; SELECT 1;' >/dev/null 2>&1"]
       interval: 5s
       timeout: 5s
       retries: 60
@@ -38,11 +42,11 @@ services:
       wetalk:
         ipv4_address: 172.20.0.5
 
-  lars-dns:
+  route-dns:
     build:
       context: .
-      dockerfile: docker/Dockerfile.lars-dns
-    container_name: wetalk-lars-dns
+      dockerfile: docker/Dockerfile.route-dns
+    container_name: wetalk-route-dns
     restart: unless-stopped
     # agent 的 tcp_client 连不上不会自动重连，必须等 dns 真正监听 7778 后再启动 agent
     healthcheck:
@@ -52,7 +56,10 @@ services:
       retries: 30
       start_period: 5s
     volumes:
-      - ./docker/lars/lars_dns.conf:/app/conf/lars_dns.conf:ro
+      # 宿主文件已改名为 route_*.conf；容器内路径 conf/lars_*.conf 是
+      # vendored 二进制硬编码的读取路径，保留原名（源码已按 WeTalk 内置
+      # 组件维护，见 third_party/Lars 内的 WeTalk patch 注释）
+      - ./docker/route/route_dns.conf:/app/conf/lars_dns.conf:ro
     depends_on:
       mysql:
         condition: service_healthy
@@ -60,11 +67,11 @@ services:
       wetalk:
         ipv4_address: 172.20.0.20
 
-  lars-reporter:
+  route-reporter:
     build:
       context: .
-      dockerfile: docker/Dockerfile.lars-reporter
-    container_name: wetalk-lars-reporter
+      dockerfile: docker/Dockerfile.route-reporter
+    container_name: wetalk-route-reporter
     restart: unless-stopped
     healthcheck:
       test: ["CMD-SHELL", "bash -c 'exec 3<>/dev/tcp/127.0.0.1/7779' 2>/dev/null"]
@@ -73,7 +80,7 @@ services:
       retries: 30
       start_period: 5s
     volumes:
-      - ./docker/lars/lars_reporter.conf:/app/conf/lars_reporter.conf:ro
+      - ./docker/route/route_reporter.conf:/app/conf/lars_reporter.conf:ro
     depends_on:
       mysql:
         condition: service_healthy
@@ -81,18 +88,18 @@ services:
       wetalk:
         ipv4_address: 172.20.0.21
 
-  lars-agent:
+  route-agent:
     build:
       context: .
-      dockerfile: docker/Dockerfile.lars-agent
-    container_name: wetalk-lars-agent
+      dockerfile: docker/Dockerfile.route-agent
+    container_name: wetalk-route-agent
     restart: unless-stopped
     volumes:
-      - ./docker/lars/lars_lb_agent.conf:/app/conf/lars_lb_agent.conf:ro
+      - ./docker/route/route_agent.conf:/app/conf/lars_lb_agent.conf:ro
     depends_on:
-      lars-dns:
+      route-dns:
         condition: service_healthy
-      lars-reporter:
+      route-reporter:
         condition: service_healthy
     networks:
       wetalk:
@@ -157,7 +164,7 @@ services:
     depends_on:
       mysql:
         condition: service_healthy
-      lars-agent:
+      route-agent:
         condition: service_started
     networks:
       wetalk:
@@ -237,7 +244,7 @@ services:
     depends_on:
       mysql:
         condition: service_healthy
-      lars-dns:
+      route-dns:
         condition: service_started
     networks:
       wetalk:

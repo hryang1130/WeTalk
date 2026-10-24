@@ -1,7 +1,7 @@
 # 部署指南
 
-两种部署形态，按你的环境二选一。**服务端必须跑在 Linux 内核上**（Lars reactor 用 epoll、
-`common/lars/lars_api.cpp` 用 POSIX socket），Windows 原生 MSVC/MinGW 无法编译；
+两种部署形态，按你的环境二选一。**服务端必须跑在 Linux 内核上**（治理层 reactor 用 epoll、
+`common/route/route_api.cpp` 用 POSIX socket），Windows 原生 MSVC/MinGW 无法编译；
 Windows 侧只跑 Electron 客户端。
 
 ## 方案 A：服务端在 Linux 服务器（推荐，你要的形态）
@@ -31,7 +31,7 @@ cp .env.example .env
 ```
 
 编辑 `.env`，**CHAT_ADV_IP1/2 填服务器的公网 IP**（云服务器填公网 IP，
-同一内网则填内网 IP）——这是 Lars 路由表里通告给客户端的 ChatServer 地址：
+同一内网则填内网 IP）——这是路由表里通告给客户端的 ChatServer 地址：
 
 ```ini
 CHAT_ADV_IP1=<服务器公网IP>
@@ -43,7 +43,7 @@ CHAT_ADV_IP2=<服务器公网IP>
 vim docker/configs/VarifyServer/config.json   # 改 email.user / email.pass
 docker compose up -d --build                  # 首次构建约 5-10 分钟
 docker compose logs -f status gate            # 观察启动
-docker compose exec mysql mysql -uroot -p123456 lars_dns \
+docker compose exec mysql mysql -uroot -p123456 wetalk_route \
   -e "SELECT modid,cmdid,INET_NTOA(serverip),serverport FROM RouteData;"   # 验证路由已写入
 ```
 
@@ -55,7 +55,7 @@ docker compose exec mysql mysql -uroot -p123456 lars_dns \
 | 8090/tcp、8091/tcp | ChatServer 长连接 |
 | 9090/tcp | ResourceServer（文件，可选） |
 
-MySQL/Redis/Lars 三组件只在容器网络内部通信，**不要**对外放行。
+MySQL/Redis/路由治理组件只在容器网络内部通信，**不要**对外放行。
 
 ### 5. Windows 客户端
 
@@ -69,8 +69,8 @@ npm start
 
 ### 6. 验证负载均衡生效
 
-服务器上 `docker compose logs status | grep Lars`，连续登录多个账号应看到
-getHost 在 chatserver1/chatserver2 之间轮换；`docker compose logs lars-agent`
+服务器上 `docker compose logs status | grep Route`，连续登录多个账号应看到
+getHost 在 chatserver1/chatserver2 之间轮换；`docker compose logs route-agent`
 可观察 report 上报与窗口统计。
 
 ---
@@ -88,7 +88,7 @@ getHost 在 chatserver1/chatserver2 之间轮换；`docker compose logs lars-age
 3. `docker compose up -d --build` 后直接 `npm start`。
 
 > 为什么不能不装 Docker 直接编译？`server/` 是 Linux C++ 代码（VS 工程是历史产物），
-> Lars 网络库基于 epoll + POSIX socket。若想彻底原生 Windows 化需把 reactor 换成
+> 治理层网络库基于 epoll + POSIX socket。若想彻底原生 Windows 化需把 reactor 换成
 > IOCP/select 实现，工作量大于收益，不建议。
 
 ## 常见问题

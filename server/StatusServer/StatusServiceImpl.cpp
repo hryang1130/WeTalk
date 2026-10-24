@@ -25,10 +25,10 @@ Status StatusServiceImpl::GetChatServer(ServerContext* context, const GetChatSer
 	reply->set_token(generate_unique_string());
 	insertToken(request->uid(), reply->token());
 
-	// 向 Lars 上报一次成功调度，供 Agent 窗口统计失败率 / 过载判断
-	auto& lars = WetalkRouteClient::Instance();
-	if (lars.enabled()) {
-		lars.report(server.host, atoi(server.port.c_str()), 0);
+	// 向路由治理层上报一次成功调度，供 route-agent 窗口统计失败率 / 过载判断
+	auto& route = WetalkRouteClient::Instance();
+	if (route.enabled()) {
+		route.report(server.host, atoi(server.port.c_str()), 0);
 	}
 	return Status::OK;
 }
@@ -59,32 +59,32 @@ StatusServiceImpl::StatusServiceImpl()
 		_servers[server.name] = server;
 	}
 
-	// Lars 服务治理：配置在 config.ini [Lars] 段；未启用时退回静态配置
+	// 路由治理：配置在 config.ini [Route] 段；未启用时退回静态配置
 	WetalkRouteClient::Instance().InitFromConfig();
 }
 
 ChatServer StatusServiceImpl::getChatServer() {
 	std::lock_guard<std::mutex> guard(_server_mtx);
 
-	// 1) 优先走 Lars：由 Agent 根据各节点失败率/过载状态返回健康节点
-	auto& lars = WetalkRouteClient::Instance();
-	if (lars.enabled()) {
+	// 1) 优先走路由治理：由 route-agent 根据各节点失败率/过载状态返回健康节点
+	auto& route = WetalkRouteClient::Instance();
+	if (route.enabled()) {
 		std::string ip;
 		int port = 0;
-		if (lars.getHost(ip, port)) {
+		if (route.getHost(ip, port)) {
 			ChatServer s;
 			s.host = ip;
 			s.port = std::to_string(port);
 			s.name = ip + ":" + std::to_string(port);
 			return s;
 		}
-		std::cerr << "[StatusServer] Lars get_host failed, fallback to static config" << std::endl;
+		std::cerr << "[StatusServer] route get_host failed, fallback to static config" << std::endl;
 	}
 
 	// 2) 静态配置兜底（原实现）：返回配置列表中的第一个节点
 	auto minServer = _servers.begin()->second;
 
-	// TODO(lars): 原有基于 Redis LOGIN_COUNT 的最小连接数逻辑已由 Lars 窗口统计替代，
+	// TODO(route): 原有基于 Redis LOGIN_COUNT 的最小连接数逻辑已由治理窗口统计替代，
 	// 如需保留双写，可在 CServer::on_timer 中继续维护 LOGIN_COUNT。
 
 	return minServer;

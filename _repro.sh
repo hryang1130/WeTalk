@@ -10,7 +10,7 @@ int main() {
     my_bool reconnect = 1;
     mysql_options(c, MYSQL_OPT_CONNECT_TIMEOUT, "30");
     mysql_options(c, MYSQL_OPT_RECONNECT, &reconnect);
-    if (!mysql_real_connect(c, "mysql", "root", "123456", "lars_dns", 3306, NULL, 0)) {
+    if (!mysql_real_connect(c, "mysql", "root", "123456", "wetalk_route", 3306, NULL, 0)) {
         printf("connect failed: %u %s\n", mysql_errno(c), mysql_error(c));
         return 1;
     }
