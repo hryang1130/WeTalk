@@ -10,7 +10,7 @@ RUN ln -s /usr/include /usr/local/include/jdbc
 
 WORKDIR /src
 COPY server/ ./server/
-COPY third_party/Lars/ ./third_party/Lars/
+COPY WeReactor/ ./WeReactor/
 
 RUN cmake -S server -B build -DCMAKE_BUILD_TYPE=Release && \
     cmake --build build -j"$(nproc)" --target gate status chat resource

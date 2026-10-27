@@ -106,7 +106,7 @@ the dedicated **ResourceServer data plane** (④, chunked upload + chunked downl
 ```
 wetalk/
 ├── server/                # server sources (with Linux CMake) + common/WetalkRouteClient + common/route (governance API)
-├── third_party/Lars/      # vendored governance internals (only the four buildable modules: lars_reactor + dns/reporter/lb_agent; upstream examples and tests trimmed)
+├── WeReactor/             # governance internals (only the four buildable modules: lars_reactor + dns/reporter/lb_agent; upstream examples and tests trimmed)
 ├── docker/
 │   ├── Dockerfile.service / Dockerfile.varify / Dockerfile.route-*
 │   ├── configs/           # container config.ini per service (MySQL/Redis point at compose service names)
@@ -166,15 +166,15 @@ docker compose logs -f status route-agent
 
 ### Server / infrastructure
 
-- [ ] Vendored `get_route` seems to double-convert IP byte order (ntohl result assigned straight into `s_addr`); kept upstream behavior in `common/route/route_api.cpp` with a note — verify with `get_route` printing on first bring-up.
-- [ ] Vendored `dns_route.cpp` reads serverip with `atoi` (overflows above 2^31); suggest `strtoul`.
+- [ ] WeReactor's `get_route` seems to double-convert IP byte order (ntohl result assigned straight into `s_addr`); kept upstream behavior in `common/route/route_api.cpp` with a note — verify with `get_route` printing on first bring-up.
+- [ ] `WeReactor`'s `dns_route.cpp` reads serverip with `atoi` (overflows above 2^31); suggest `strtoul`.
 - [ ] Generated protobuf files (message.pb.cc etc.) are from an old protoc; the Linux build regenerates them via CMake — mind versions if mixing with Windows builds.
 - [x] The outdated ChatServer2 copy (`server/_attic/`) has been deleted: it was a historical copy without the later changes, so builds always use `ChatServer` + the two config.ini files (compose chat1/chat2).
 - [x] VarifyServer is a Node service and only reads `config.json` (container copy in `docker/configs/VarifyServer/`); the redundant `config.ini` is gone. ResourceServer is self-built and configured under `docker/configs/`.
 
 ## Containerization caveat (inet_aton)
 
-The vendored reactor's `tcp_client`/`udp_client` parse addresses with `inet_aton()` and **cannot resolve compose service
+The WeReactor reactor's `tcp_client`/`udp_client` parse addresses with `inet_aton()` and **cannot resolve compose service
 names**. How this repo handles it:
 
 - `docker/route/route_agent.conf` `[reporter]`/`[dnsserver]` use fixed compose IPs (172.20.0.21 / 172.20.0.20); route-dns/route-reporter reach MySQL through libmysqlclient's own resolver, so service names work there.
@@ -186,7 +186,7 @@ names**. How this repo handles it:
 | Problem | Fix |
 | --- | --- |
 | `common/WetalkRouteClient.cpp` (formerly LarsClient.cpp) was compiled by no target; status link always failed | CMake gained the `wetalk_common` static library, linked into every service |
-| the `route_api` library compiled both the self-built and the vendored `lars_api.cpp`, duplicating symbols | only the self-built version is compiled; vendored headers no longer participate |
+| the `route_api` library compiled both the self-built and the WeReactor `lars_api.cpp`, duplicating symbols | only the self-built version is compiled; WeReactor headers no longer participate |
 | `WetalkRouteClient.cpp` missing the `ConfigMgr.h` include | added (common/ and per-service ConfigMgr are identical in content; implementations are provided per service) |
 | `Dockerfile.service` had wrong output path `build/${SERVICE}/${SERVICE}` and copied nonexistent configs | fixed to `build/${SERVICE}`; configs are always mounted by compose (chat1/chat2 share the chat image) |
 | compose `depends_on` mixed map/list syntax (invalid) | unified to map form |

@@ -21,9 +21,9 @@ pkg_check_modules(JSONCPP REQUIRED jsoncpp) # jammy 头文件在 /usr/include/js
 
 find_program(GRPC_CPP_PLUGIN grpc_cpp_plugin REQUIRED)
 
-set(LARS_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../third_party/Lars)
+set(LARS_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../WeReactor)
 
-# ---------- 路由治理协议 (vendored base/proto/lars.proto，协议包名 lars) ----------
+# ---------- 路由治理协议（WeReactor 内置实现 base/proto/lars.proto，协议包名 lars 保持不变） ----------
 set(LARS_PROTO_SRC ${CMAKE_CURRENT_BINARY_DIR}/lars.pb.cc)
 set(LARS_PROTO_HDR ${CMAKE_CURRENT_BINARY_DIR}/lars.pb.h)
 add_custom_command(
@@ -37,13 +37,13 @@ add_library(lars_proto STATIC ${LARS_PROTO_SRC})
 target_include_directories(lars_proto PUBLIC ${CMAKE_CURRENT_BINARY_DIR})
 target_link_libraries(lars_proto PUBLIC protobuf::libprotobuf)
 
-# ---------- 路由治理 reactor 网络库（vendored，勿改动） ----------
+# ---------- 路由治理 reactor 网络库（WeReactor 内置实现，补丁须带 "WeTalk patch" 注释） ----------
 file(GLOB LARS_REACTOR_SRC ${LARS_DIR}/lars_reactor/src/*.cpp)
 add_library(lars_reactor STATIC ${LARS_REACTOR_SRC})
 target_include_directories(lars_reactor PUBLIC ${LARS_DIR}/lars_reactor/include)
 target_link_libraries(lars_reactor PUBLIC pthread dl protobuf::libprotobuf)
 
-# ---------- WeTalk 路由治理 API（route_client，自研版；vendored api/ 已从仓库剔除，避免同名类符号重复） ----------
+# ---------- WeTalk 路由治理 API（route_client，自研版；WeReactor 里的旧 lars_api 已剔除，避免同名类符号重复） ----------
 add_library(route_api STATIC common/route/route_api.cpp)
 target_include_directories(route_api PUBLIC common/route ${CMAKE_CURRENT_BINARY_DIR})
 target_link_libraries(route_api PUBLIC lars_reactor lars_proto)

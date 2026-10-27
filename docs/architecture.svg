@@ -61,11 +61,11 @@
   <path class="store" d="M910 275 L976 275" marker-end="url(#mN)"/>
   <text class="lbl" x="943" y="265" text-anchor="middle">健康度</text>
   <!-- dns -> MySQL(wetalk_route) -->
-  <path class="store" d="M1065 310 L1065 395 L890 395 L890 426" marker-end="url(#mN)"/>
-  <text class="lbl" x="1010" y="388" text-anchor="middle">路由表 RouteData</text>
-  <!-- Chat -> MySQL（走 reporter 与 dns 之间的走廊，避免穿过盒子） -->
-  <path class="store" d="M945 215 L945 415 L830 415 L830 426" marker-end="url(#mN)"/>
-  <text class="lbl" x="952" y="335">消息落库 / 已读状态</text>
+  <path class="store" d="M1065 310 L1065 352 L850 352 L850 426" marker-end="url(#mN)"/>
+  <text class="lbl" x="1012" y="342" text-anchor="middle">路由表 RouteData</text>
+  <!-- Chat -> MySQL（沿画布右缘绕行，避开 route 行、标签文字与 健康度 箭头） -->
+  <path class="store" d="M1050 77 L1165 77 L1165 404 L790 404 L790 426" marker-end="url(#mN)"/>
+  <text class="lbl" x="935" y="396" text-anchor="middle">消息落库 / 已读状态</text>
   <!-- Resource -> MySQL -->
   <path class="store" d="M335 320 L335 350 L690 350 L690 455 L696 455" marker-end="url(#mN)"/>
   <text class="lbl" x="500" y="343">文件元数据 / 分布式锁</text>

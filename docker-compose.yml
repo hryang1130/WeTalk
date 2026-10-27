@@ -57,8 +57,8 @@ services:
       start_period: 5s
     volumes:
       # 宿主文件已改名为 route_*.conf；容器内路径 conf/lars_*.conf 是
-      # vendored 二进制硬编码的读取路径，保留原名（源码已按 WeTalk 内置
-      # 组件维护，见 third_party/Lars 内的 WeTalk patch 注释）
+      # WeReactor 二进制硬编码的读取路径，保留原名（源码已按 WeTalk 内置
+      # 组件维护，见 WeReactor/ 内的 WeTalk patch 注释）
       - ./docker/route/route_dns.conf:/app/conf/lars_dns.conf:ro
     depends_on:
       mysql:

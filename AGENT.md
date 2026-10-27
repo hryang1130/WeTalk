@@ -7,7 +7,7 @@
 
 **WeTalk** — a C++ microservice IM system: GateServer (HTTP access), StatusServer (node scheduling), ChatServer ×2 (TCP long connections), ResourceServer (file/image data plane), VarifyServer (email codes, Node.js), plus a built-in UDP route-governance trio (route-dns / route-reporter / route-agent) and an Electron desktop client. 12 containers, one `docker compose up -d --build`.
 
-The project was integrated from **llfcchat** (chat microservices), then a self-built route-governance layer was added (vendored internals live under `third_party/Lars/`) and heavily extended (file service, read receipts, friend removal, offline messaging, auto-reconnect). Naming rule: the governance components are **route-dns / route-reporter / route-agent** everywhere user-visible (docs, diagram, compose, configs). Credits live in the README — keep them there.
+The project was integrated from **llfcchat** (chat microservices), then a self-built route-governance layer was added (internal implementation lives under `WeReactor/`) and heavily extended (file service, read receipts, friend removal, offline messaging, auto-reconnect). Naming rule: the governance components are **route-dns / route-reporter / route-agent** everywhere user-visible (docs, diagram, compose, configs). Credits live in the README — keep them there.
 
 ## Golden rules
 
@@ -17,10 +17,10 @@ The project was integrated from **llfcchat** (chat microservices), then a self-b
    ResourceServer frames are **different**: `msgid(2B BE) + msglen(4B BE) + JSON`.
    // 两端协议编号必须同步改，头部长度两端还不一样，别想当然。
 
-2. **Do not edit `third_party/Lars/`.** It is vendored (treated as an internal implementation detail, never
+2. **Treat `WeReactor/` as an internal implementation detail.** It is a WeTalk built-in component (never
    presented as a third-party dependency in docs/diagram). The self-built governance API lives in
    `server/common/route/route_api.cpp` and the wrapper in `server/common/WetalkRouteClient.{h,cpp}`.
-   // vendored 内部实现目录不许动；对外一律称 WeTalk 路由治理组件（route-dns/reporter/agent），补丁打在自研层。
+   // WeReactor 是内置实现目录；对外一律称 WeTalk 路由治理组件（route-dns/reporter/agent），补丁打在自研层。
 
 3. **Configs are mounted, not baked.** Container configs live in `docker/configs/<Service>/`
    and are volume-mounted by compose. The copies under `server/<Service>/config.ini` are for
@@ -30,7 +30,7 @@ The project was integrated from **llfcchat** (chat microservices), then a self-b
    on a **fresh** MySQL volume. Business DB name is `wetalk`; route table DB is `wetalk_route`.
    // 改了建表脚本必须 down -v 重建卷，否则永远不生效。
 
-5. **No dead trees in the working copy.** Archive copies (`server/_attic/`), one-off repro scripts and the vendored
+5. **No dead trees in the working copy.** Archive copies (`server/_attic/`), one-off repro scripts and the upstream
    upstream examples/tests were removed on 2026-10-26. Dead code belongs in git history, not in the tree — do not
    re-add `Test*` scratch functions to `main` files or copy upstream `example/` dirs back in.
    // 死代码留在 git 历史里；别再往 main 文件里塞测试函数、也别把上游 example/ 拷回来。
