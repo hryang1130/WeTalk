@@ -54,13 +54,3 @@ cmake -S we_reactor -B build -DCMAKE_BUILD_TYPE=Release -DWE_REACTOR_BUILD_BINS=
 | `re_reactor/src/thread_pool.cpp` | `get_thread()` 缺少 `_index++`，所有连接都被投递到 0 号线程 |
 | `re_dns/src/subscribe.cpp` | `SubscribeList()` 构造函数为空，两个 `pthread_mutex_t` 落在堆上未初始化（`new T()` 存在用户构造函数时不做零初始化）——垃圾值偶然呈「已锁」态时 subscribe/publish 永久阻塞在无人唤醒的 futex。已在构造函数里显式 `pthread_mutex_init` |
 
-## 约定
-
-- 这里的代码是 WeTalk 的内置实现，读者视角应当是「我们自己的治理层」，不要表述成第三方依赖。
-- 修改本目录需遵循仓库根的 `AGENT.md`：补丁加 `WeTalk patch` 注释、对外名称统一为 route-* 组件名。
-- `re_reactor` 的 `tcp_client` / `udp_client` 用 `inet_aton()` 解析地址，**不认容器服务名**，
-  配置里必须写点分 IP（见 `docker/route/route_agent.conf`）。
-
-## License
-
-见本目录 `LICENSE`。

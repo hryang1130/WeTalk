@@ -5,13 +5,6 @@ inline void re_report_logo()
 {
     //printf("----------------------------------------------------------\n");
     printf("\n");
-    printf("        ▄▄                                               \n");
-    printf("        ██                                               \n");
-    printf("        ██         ▄█████▄   ██▄████  ▄▄█████▄           \n");
-    printf("        ██         ▀ ▄▄▄██   ██▀      ██▄▄▄▄ ▀           \n");
-    printf("        ██        ▄██▀▀▀██   ██        ▀▀▀▀██▄           \n");
-    printf("        ██▄▄▄▄▄▄  ██▄▄▄███   ██       █▄▄▄▄▄██           \n");
-    printf("        ▀▀▀▀▀▀▀▀   ▀▀▀▀ ▀▀   ▀▀        ▀▀▀▀▀▀            \n");
     printf("    Load balance And Remote service schedule System \n");
     printf("                                                         \n");
     printf("        _____                       _                       \n");

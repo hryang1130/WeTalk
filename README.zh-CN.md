@@ -6,7 +6,6 @@
 >
 > **部署启动流程见 [DEPLOY.md](DEPLOY.md)**（Linux 服务器部署 / 本机 Docker Desktop 两种形态 + 常见问题）。
 
-> 项目由 [llfcchat](https://github.com/secondtonone1/llfcchat)（C++ 微服务聊天系统，原作者恋恋风辰；gitee 同 commit 镜像：[tfn3147546/llfcchat](https://gitee.com/tfn3147546/llfcchat)，HEAD `4a01c4f`）整合演化而来，自研了 UDP 路由治理层（route-dns / route-reporter / route-agent，实现于 `we_reactor/`），并做了大量扩展——让 StatusServer 通过治理组件做真正的负载均衡而不是读静态配置，新增文件服务、已读回执、删好友、离线消息等完整能力。致谢原作者。
 
 桌面客户端为 **Electron**（`client-electron/`，功能清单与协议见 [client-electron/README-CLIENT.md](client-electron/README-CLIENT.md)）。
 
@@ -41,9 +40,6 @@ cd client-electron && npm install && npm start
 服务器地址记忆。服务端还提供：内置负载均衡调度（8090/8091 轮换+故障剔除）、
 ChatServer 间 gRPC 同类通知（消息/已读/删好友跨机转发）、消息持久化（`wetalk.chat_message`，断线重连后历史不丢）。
 
-> ⚠️ **从旧版本升级**：业务库已由 `llfc` 更名为 `wetalk`，MySQL 卷里的旧库不会自动迁移——需要
-> `docker compose down -v`（会清空数据）后重新 `up -d --build`，init 脚本会建出新库并写入种子数据。
-
 **验证服务端链路**（不启动客户端也能跑）：
 
 ```bash
@@ -73,31 +69,6 @@ node test-profile.js    # /user_profile 端点联调
 - **跨机一致性靠 gRPC peer 通知**：两个 ChatServer 之间用 gRPC 转发文本/图片/已读/删好友通知，保证用户在任意节点都实时收到。
 - **离线消息靠 MySQL 兜底**：消息先落 `chat_message`（`status=0` 未读），登录时下发 `unread_list`，重连/重登都不丢。
 
-### 关键整合点（相对原版 llfcchat 的改动）
-
-| 位置 | 原版 | 整合后 |
-| --- | --- | --- |
-| `StatusServiceImpl::getChatServer()` | 读 config.ini 静态列表，返回第一个 | 优先走 `WetalkRouteClient::getHost()`（Agent 按失败率/过载窗口返回健康节点），失败才回退静态配置 |
-| 调用结果反馈 | 无 | StatusServer 每次调度成功后 `WetalkRouteClient::report()` 上报，Agent 滚动窗口统计节点健康度 |
-| 节点注册 | 写死在 config.ini | 路由写在 MySQL `wetalk_route.RouteData`（modid=1, cmdid=1），支持 RouteChange 版本化热更新 |
-| 构建 | Windows VS 工程只能本机跑 | 新增 Linux CMake 构建 + 每服务一个 Docker 镜像，compose 一键起 |
-| 治理 API | agent 地址写死 127.0.0.1 | `server/common/route/route_api.cpp` 改为构造参数传入（容器间互访必需） |
-
-### 基于原版的自行开发内容（本仓库 server/ 相对 GitHub 原版 llfcchat 的 diff）
-
-> 已用脚本逐文件比对（2026-10-22，原版 commit `4a01c4f`）。以下改动是本地版本独有的，面试可指认源码：
-
-| 类别 | 位置 | 内容 |
-| --- | --- | --- |
-| 图片消息 | `ChatServer/const.h`、`LogicSystem.*` | 新增协议 `ID_IMG_CHAT_MSG_REQ/RSP/NOTIFY`(1035/1036/1039) 与 `DealChatImgMsg` 处理流程（md5 去重、unique_id、token 校验） |
-| 消息可靠性 | `ChatServer/const.h`、`MysqlDao.*`、`MysqlMgr.*` | 新增 `AddChatMsg` 聊天记录落库 + `MsgStatus` 状态机（UN_READ / SEND_FAILED / READED / UN_UPLOAD），支撑离线消息与已读回执 |
-| 并发修复 | `ChatServer/MysqlDao.cpp` | 好友关系插入按 uid 大小固定顺序（self_id 取较小 uid），消除并发互加好友时的死锁/唯一键冲突 |
-| 登出安全 | `ChatServer/CSession.cpp` | 登出时删除 Redis 中 `USERTOKENPREFIX+uid` 的 token |
-| Redis 能力 | `StatusServer/RedisMgr.*` | 新增 `SetWithExpire`（SETEX 原子写值+过期），供验证码/token 使用 |
-| 文件服务 | `ResourceServer/`（48 个文件，原版无此服务） | 自建文件资源服务器：FileInfo/FileSystem/FileWorker/LogicWorker、Redis `DistLock` 分布式锁、文件信息同步协议 `ID_FILE_INFO_SYNC_REQ/RSP`(1041/1042)，GateServer 登录响应下发 `reshost/resport` |
-| 社交扩展协议 | `ChatServer/const.h`、`LogicSystem.*`、`MysqlDao.*`、`ChatGrpcClient.*`、`ChatServiceImpl.*`、`message.proto` | 2026-10-23 新增：删除好友 `1043/1044/1045`（双向删 friend 表）、已读回执 `1046/1047/1048`（`chat_message.status` 0→2 + 定向 UPDATE）、首条消息服务端自动建 `chat_thread`；跨机通知走新增 gRPC `NotifyReadMsg/NotifyDelFriend` |
-| 资料设置 | `GateServer/LogicSystem.cpp`、`MysqlDao.*` | HTTP `POST /user_profile`：Redis token 校验 → 更新 user 表 nick/desc（`desc` 是保留字需反引号）→ 删 `ubaseinfo_<uid>` 缓存 |
-
 
 ### 目录
 
@@ -122,7 +93,7 @@ wetalk/
 ```bash
 cp .env.example .env
 # 编辑 .env：CHAT_ADV_IP1/2 填本机局域网 IP（客户端直连 8090/8091 用；本机联调填 127.0.0.1）
-# 编辑 docker/configs/VarifyServer/config.json：填你自己的 163 SMTP 授权码（原作者授权码已移除，不填则注册时收不到验证码邮件）
+# 编辑 docker/configs/VarifyServer/config.json：填你自己的 163 SMTP 授权码
 docker compose up -d --build
 docker compose logs -f status route-agent
 ```
