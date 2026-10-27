@@ -131,7 +131,8 @@ docker compose logs -f status route-agent
 
 ### 服务端 / 基础设施
 
-- [ ] we_reactor 实现 `get_route` 的 IP 字节序转换疑似有双重转换（ntohl 后直接赋给 s_addr），已在 `common/route/route_api.cpp` 保持原行为并标注；首次联调时优先用 `get_route` 打印验证。
+- [x] `get_route` 的 IP 字节序已实测一致（`RouteData.serverip` 是 `INET_ATON` 的网络序，`route_client` 收 `ntohl`、发 `htonl`，来回能对上），无需再改。
+- [x] 健康上报已打通：StatusServer 每 3s 对各 ChatServer 做一次 TCP 探活并上报 route-agent（`contin_err_limit=5` → 约 15s 摘除坏节点，节点恢复后约 30s 自动回池）。注意本机 Docker 部署时 `RouteData` 存的是给客户端用的 `127.0.0.1`（容器里探不到），所以探活目标按端口改取 `config.ini` 里 `[chatserverN]` 的集群内地址，上报仍用 route 给的 `(ip, port)`——agent 是按这个 key 在自己的缓存里找节点的。
 - [ ] we_reactor 的 `dns_route.cpp` 用 `atoi` 读 serverip（>2^31 会溢出），建议后续改 `strtoul`。
 - [ ] protobuf 生成文件（message.pb.cc 等）是老版本 protoc 产物，Linux 构建统一用 CMake 重新生成，Windows 侧如混用需注意版本。
 - [x] ChatServer2 旧源码副本（`server/_attic/`）已删除：它是不含后续自研修改的历史拷贝，构建一律用 `ChatServer` + 两份 config.ini（compose chat1/chat2）。

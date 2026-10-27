@@ -4,6 +4,8 @@
 #include <string>
 #include <memory>
 #include <mutex>
+#include <utility>
+#include <vector>
 
 class WetalkRouteClientImpl;
 
@@ -23,6 +25,8 @@ public:
 
     // 从 route-agent 获取一个健康节点；失败返回 false
     bool getHost(std::string& ip, int& port);
+    // 取该 modid/cmdid 的全部节点（探活等场景用）；返回 0 表示成功，hosts 为 (ip, port) 列表
+    int getRoute(std::vector<std::pair<std::string, int>>& hosts);
     // 上报一次调用结果：retcode 0 = 成功
     void report(const std::string& ip, int port, int retcode);
 

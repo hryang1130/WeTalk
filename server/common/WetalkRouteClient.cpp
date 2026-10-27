@@ -13,6 +13,8 @@ public:
     int regInit(int modid, int cmdid) { return _client.reg_init(modid, cmdid); }
     int getHost(int modid, int cmdid, std::string& ip, int& port)
     { return _client.get_host(modid, cmdid, ip, port); }
+    int getRoute(int modid, int cmdid, route_set& rs)
+    { return _client.get_route(modid, cmdid, rs); }
     void report(int modid, int cmdid, const std::string& ip, int port, int ret)
     { _client.report(modid, cmdid, ip, port, ret); }
 
@@ -71,6 +73,20 @@ bool WetalkRouteClient::getHost(std::string& ip, int& port)
         if (ret == 0) return true;
     }
     return false;
+}
+
+int WetalkRouteClient::getRoute(std::vector<std::pair<std::string, int>>& hosts)
+{
+    if (!_enabled) return -1;
+    std::lock_guard<std::mutex> lock(_mtx);
+    route_set rs;
+    int ret = _impl->getRoute(_modid, _cmdid, rs);
+    if (ret != 0) return ret;
+    hosts.reserve(hosts.size() + rs.size());
+    for (route_set_it it = rs.begin(); it != rs.end(); ++it) {
+        hosts.emplace_back(it->first, it->second);
+    }
+    return 0;
 }
 
 void WetalkRouteClient::report(const std::string& ip, int port, int retcode)

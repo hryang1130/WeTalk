@@ -44,8 +44,12 @@ public:
 private:
 	void insertToken(int uid, std::string token);
 	ChatServer getChatServer();
+	// 后台探活：周期性 TCP 连一下路由里的每个 ChatServer，把结果上报给 route-agent，
+	// 让 agent 的失败率/连续失败窗口有真实数据（否则永远不会剔除坏节点）
+	void startHealthProbe();
 	std::unordered_map<std::string, ChatServer> _servers;
 	std::mutex _server_mtx;
+	size_t _fallback_idx = 0;	// 静态配置兜底时的轮询下标
 
 };
 

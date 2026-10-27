@@ -135,7 +135,8 @@ docker compose logs -f status route-agent
 
 ### Server / infrastructure
 
-- [ ] we_reactor's `get_route` seems to double-convert IP byte order (ntohl result assigned straight into `s_addr`); kept existing behavior in `common/route/route_api.cpp` with a note — verify with `get_route` printing on first bring-up.
+- [x] `get_route`'s IP byte order turned out to be consistent (RouteData stores the network-order `INET_ATON` value; `route_client` applies `ntohl` on receive and `htonl` on report, so it round-trips) — no change needed.
+- [x] Health reporting now works: StatusServer TCP-probes every ChatServer every 3s and reports to route-agent (`contin_err_limit=5` → a dead node is evicted in ~15s and rejoins ~30s after recovery). Note: in the local Docker setup `RouteData` holds the client-facing `127.0.0.1` (unreachable from inside a container), so the probe target is looked up by port in `[chatserverN]` of `config.ini` (cluster-internal address), while the report still uses the route `(ip, port)` — that is the key the agent uses to find the node in its cache.
 - [ ] `we_reactor`'s `dns_route.cpp` reads serverip with `atoi` (overflows above 2^31); suggest `strtoul`.
 - [ ] Generated protobuf files (message.pb.cc etc.) are from an old protoc; the Linux build regenerates them via CMake — mind versions if mixing with Windows builds.
 - [x] The outdated ChatServer2 copy (`server/_attic/`) has been deleted: it was a historical copy without the later changes, so builds always use `ChatServer` + the two config.ini files (compose chat1/chat2).
