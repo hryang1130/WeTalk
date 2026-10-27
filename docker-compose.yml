@@ -56,10 +56,10 @@ services:
       retries: 30
       start_period: 5s
     volumes:
-      # 宿主文件已改名为 route_*.conf；容器内路径 conf/lars_*.conf 是
+      # 宿主文件已改名为 route_*.conf；容器内路径 conf/re_*.conf 是
       # WeReactor 二进制硬编码的读取路径，保留原名（源码已按 WeTalk 内置
       # 组件维护，见 WeReactor/ 内的 WeTalk patch 注释）
-      - ./docker/route/route_dns.conf:/app/conf/lars_dns.conf:ro
+      - ./docker/route/route_dns.conf:/app/conf/re_dns.conf:ro
     depends_on:
       mysql:
         condition: service_healthy
@@ -80,7 +80,7 @@ services:
       retries: 30
       start_period: 5s
     volumes:
-      - ./docker/route/route_reporter.conf:/app/conf/lars_reporter.conf:ro
+      - ./docker/route/route_reporter.conf:/app/conf/re_reporter.conf:ro
     depends_on:
       mysql:
         condition: service_healthy
@@ -95,7 +95,7 @@ services:
     container_name: wetalk-route-agent
     restart: unless-stopped
     volumes:
-      - ./docker/route/route_agent.conf:/app/conf/lars_lb_agent.conf:ro
+      - ./docker/route/route_agent.conf:/app/conf/re_lb_agent.conf:ro
     depends_on:
       route-dns:
         condition: service_healthy

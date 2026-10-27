@@ -6,7 +6,7 @@
 >
 > **Deployment guide: [DEPLOY.md](DEPLOY.md)** (Linux server / local Docker Desktop, plus FAQ).
 
-> WeTalk started as an integration of [llfcchat](https://github.com/secondtonone1/llfcchat) (a C++ microservice chat system by 恋恋风辰), with a self-built UDP route-governance layer (route-dns / route-reporter / route-agent, designed after [aceld/Lars](https://github.com/aceld/Lars)) and substantial original work on top: real load balancing, a file service, read receipts, friend removal, offline messaging and more. Credits to the original authors.
+> WeTalk started as an integration of [llfcchat](https://github.com/secondtonone1/llfcchat) (a C++ microservice chat system by 恋恋风辰), with a self-built UDP route-governance layer (route-dns / route-reporter / route-agent, implemented in `WeReactor/`) and substantial original work on top: real load balancing, a file service, read receipts, friend removal, offline messaging and more. Credits to the original authors.
 
 The desktop client is **Electron** (`client-electron/`, feature list & protocol map in [client-electron/README-CLIENT.md](client-electron/README-CLIENT.md)).
 
@@ -106,7 +106,7 @@ the dedicated **ResourceServer data plane** (④, chunked upload + chunked downl
 ```
 wetalk/
 ├── server/                # server sources (with Linux CMake) + common/WetalkRouteClient + common/route (governance API)
-├── WeReactor/             # governance internals (only the four buildable modules: lars_reactor + dns/reporter/lb_agent; upstream examples and tests trimmed)
+├── WeReactor/             # governance internals (re_reactor + re_dns / re_reporter / re_lb_agent; upstream examples and tests trimmed)
 ├── docker/
 │   ├── Dockerfile.service / Dockerfile.varify / Dockerfile.route-*
 │   ├── configs/           # container config.ini per service (MySQL/Redis point at compose service names)
@@ -185,8 +185,8 @@ names**. How this repo handles it:
 
 | Problem | Fix |
 | --- | --- |
-| `common/WetalkRouteClient.cpp` (formerly LarsClient.cpp) was compiled by no target; status link always failed | CMake gained the `wetalk_common` static library, linked into every service |
-| the `route_api` library compiled both the self-built and the WeReactor `lars_api.cpp`, duplicating symbols | only the self-built version is compiled; WeReactor headers no longer participate |
+| `common/WetalkRouteClient.cpp` (the route client) was compiled by no target; status link always failed | CMake gained the `wetalk_common` static library, linked into every service |
+| the `route_api` library compiled both the self-built API and an early in-tree copy (since removed), duplicating symbols | only the self-built version is compiled; WeReactor headers no longer participate |
 | `WetalkRouteClient.cpp` missing the `ConfigMgr.h` include | added (common/ and per-service ConfigMgr are identical in content; implementations are provided per service) |
 | `Dockerfile.service` had wrong output path `build/${SERVICE}/${SERVICE}` and copied nonexistent configs | fixed to `build/${SERVICE}`; configs are always mounted by compose (chat1/chat2 share the chat image) |
 | compose `depends_on` mixed map/list syntax (invalid) | unified to map form |

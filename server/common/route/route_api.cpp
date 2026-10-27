@@ -1,5 +1,5 @@
 #include "route_api.h"
-#include "lars.pb.h"
+#include "re.pb.h"
 #include "message.h" // WeReactor reactor: msg_head / MESSAGE_HEAD_LEN
 #include <string.h>
 #include <sys/socket.h>
@@ -67,50 +67,50 @@ int route_client::reg_init(int modid, int cmdid)
         else break;
         ++retry_cnt;
     }
-    if (route.empty()) return lars::RET_NOEXIST;
-    return lars::RET_SUCC;
+    if (route.empty()) return re::RET_NOEXIST;
+    return re::RET_SUCC;
 }
 
 int route_client::get_route(int modid, int cmdid, route_set& route)
 {
-    lars::GetRouteRequest req;
+    re::GetRouteRequest req;
     req.set_modid(modid);
     req.set_cmdid(cmdid);
 
     char write_buf[4096], read_buf[80 * 1024];
     msg_head head;
     head.msglen = req.ByteSizeLong();
-    head.msgid = lars::ID_API_GetRouteRequest;
+    head.msgid = re::ID_API_GetRouteRequest;
     memcpy(write_buf, &head, MESSAGE_HEAD_LEN);
     req.SerializeToArray(write_buf + MESSAGE_HEAD_LEN, head.msglen);
 
     int index = (modid + cmdid) % 3;
     int ret = sendto(_sockfd[index], write_buf, head.msglen + MESSAGE_HEAD_LEN, 0, NULL, 0);
-    if (ret == -1) { perror("sendto"); return lars::RET_SYSTEM_ERROR; }
+    if (ret == -1) { perror("sendto"); return re::RET_SYSTEM_ERROR; }
 
-    lars::GetRouteResponse rsp;
+    re::GetRouteResponse rsp;
     int message_len = recvfrom(_sockfd[index], read_buf, sizeof(read_buf), 0, NULL, NULL);
-    if (message_len == -1) { perror("recvfrom"); return lars::RET_SYSTEM_ERROR; }
+    if (message_len == -1) { perror("recvfrom"); return re::RET_SYSTEM_ERROR; }
 
     memcpy(&head, read_buf, MESSAGE_HEAD_LEN);
-    if (head.msgid != lars::ID_API_GetRouteResponse) return lars::RET_SYSTEM_ERROR;
+    if (head.msgid != re::ID_API_GetRouteResponse) return re::RET_SYSTEM_ERROR;
 
     ret = rsp.ParseFromArray(read_buf + MESSAGE_HEAD_LEN, message_len - MESSAGE_HEAD_LEN);
-    if (!ret || rsp.modid() != modid || rsp.cmdid() != cmdid) return lars::RET_SYSTEM_ERROR;
+    if (!ret || rsp.modid() != modid || rsp.cmdid() != cmdid) return re::RET_SYSTEM_ERROR;
 
     for (int i = 0; i < rsp.host_size(); i++) {
-        const lars::HostInfo& host = rsp.host(i);
+        const re::HostInfo& host = rsp.host(i);
         struct in_addr inaddr;
         inaddr.s_addr = ntohl(host.ip());   // 与 WeReactor reactor 的字节序约定保持一致
         route.push_back(ip_port(inet_ntoa(inaddr), host.port()));
     }
-    return lars::RET_SUCC;
+    return re::RET_SUCC;
 }
 
 int route_client::get_host(int modid, int cmdid, std::string& ip, int& port)
 {
     uint32_t seq = _seqid++;
-    lars::GetHostRequest req;
+    re::GetHostRequest req;
     req.set_seq(seq);
     req.set_modid(modid);
     req.set_cmdid(cmdid);
@@ -118,47 +118,47 @@ int route_client::get_host(int modid, int cmdid, std::string& ip, int& port)
     char write_buf[4096], read_buf[4096];
     msg_head head;
     head.msglen = req.ByteSizeLong();
-    head.msgid = lars::ID_GetHostRequest;
+    head.msgid = re::ID_GetHostRequest;
     memcpy(write_buf, &head, MESSAGE_HEAD_LEN);
     req.SerializeToArray(write_buf + MESSAGE_HEAD_LEN, head.msglen);
 
     int index = (modid + cmdid) % 3;
     int ret = sendto(_sockfd[index], write_buf, head.msglen + MESSAGE_HEAD_LEN, 0, NULL, 0);
-    if (ret == -1) { perror("sendto"); return lars::RET_SYSTEM_ERROR; }
+    if (ret == -1) { perror("sendto"); return re::RET_SYSTEM_ERROR; }
 
-    lars::GetHostResponse rsp;
+    re::GetHostResponse rsp;
     int message_len = recvfrom(_sockfd[index], read_buf, sizeof(read_buf), 0, NULL, NULL);
-    if (message_len == -1) { perror("recvfrom"); return lars::RET_SYSTEM_ERROR; }
+    if (message_len == -1) { perror("recvfrom"); return re::RET_SYSTEM_ERROR; }
 
     memcpy(&head, read_buf, MESSAGE_HEAD_LEN);
-    if (head.msgid != lars::ID_GetHostResponse) return lars::RET_SYSTEM_ERROR;
+    if (head.msgid != re::ID_GetHostResponse) return re::RET_SYSTEM_ERROR;
 
     ret = rsp.ParseFromArray(read_buf + MESSAGE_HEAD_LEN, message_len - MESSAGE_HEAD_LEN);
-    if (!ret || rsp.modid() != modid || rsp.cmdid() != cmdid) return lars::RET_SYSTEM_ERROR;
+    if (!ret || rsp.modid() != modid || rsp.cmdid() != cmdid) return re::RET_SYSTEM_ERROR;
 
     // 必须检查 retcode：agent 无路由/过载时回 RET_NOEXIST/RET_OVERLOAD，
     // 此时 host 字段是 proto3 默认值(ip=0,port=0)，若不检查会把 "0.0.0.0:0"
     // 当成有效结果返回（曾导致全新部署时所有登录失败）
-    if (rsp.retcode() != lars::RET_SUCC) return rsp.retcode();
+    if (rsp.retcode() != re::RET_SUCC) return rsp.retcode();
 
-    const lars::HostInfo& host = rsp.host();
+    const re::HostInfo& host = rsp.host();
     struct in_addr inaddr;
     inaddr.s_addr = ntohl(host.ip());
     ip = inet_ntoa(inaddr);
     port = host.port();
-    return lars::RET_SUCC;
+    return re::RET_SUCC;
 }
 
 void route_client::report(int modid, int cmdid, const std::string& ip, int port, int retcode)
 {
-    lars::ReportRequest req;
+    re::ReportRequest req;
     req.set_modid(modid);
     req.set_cmdid(cmdid);
 
     // WeReactor proto：ReportRequest = {modid, cmdid, host(单个), retcode}
     struct in_addr inaddr;
     inet_aton(ip.c_str(), &inaddr);
-    lars::HostInfo* host = req.mutable_host();
+    re::HostInfo* host = req.mutable_host();
     host->set_ip(htonl(inaddr.s_addr));
     host->set_port(port);
     req.set_retcode(retcode);
@@ -166,7 +166,7 @@ void route_client::report(int modid, int cmdid, const std::string& ip, int port,
     char write_buf[4096];
     msg_head head;
     head.msglen = req.ByteSizeLong();
-    head.msgid = lars::ID_ReportRequest;
+    head.msgid = re::ID_ReportRequest;
     memcpy(write_buf, &head, MESSAGE_HEAD_LEN);
     req.SerializeToArray(write_buf + MESSAGE_HEAD_LEN, head.msglen);
 

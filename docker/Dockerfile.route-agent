@@ -5,16 +5,16 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libmysqlclient-dev libssl-dev libzstd-dev && rm -rf /var/lib/apt/lists/*
 WORKDIR /src/WeReactor
 COPY WeReactor/ ./
-RUN protoc --cpp_out=base/proto -Ibase/proto base/proto/lars.proto
-# 上游 Lars Makefile 找的是它自带的 mysql-connector-c（未随 WeReactor 入库），用系统 libmysqlclient-dev 顶替
+RUN protoc --cpp_out=base/proto -Ibase/proto base/proto/re.proto
+# WeReactor 模块的 Makefile 找的是它自带的 mysql-connector-c（未随源码入库），用系统 libmysqlclient-dev 顶替
 RUN mkdir -p base/mysql-connector-c/lib && \
     ln -s /usr/include/mysql base/mysql-connector-c/include && \
     ln -s /usr/lib/x86_64-linux-gnu/libmysqlclient.a base/mysql-connector-c/lib/libmysqlclient.a
-RUN make -C lars_reactor && make -C lars_loadbalance_agent
+RUN make -C re_reactor && make -C re_lb_agent
 
 FROM ubuntu:22.04
 RUN apt-get update && apt-get install -y --no-install-recommends \
     libprotobuf23 libmysqlclient21 && rm -rf /var/lib/apt/lists/*
-COPY --from=builder /src/WeReactor/lars_loadbalance_agent/bin/* /app/
+COPY --from=builder /src/WeReactor/re_lb_agent/bin/* /app/
 WORKDIR /app
-CMD ["/app/lars_lb_agent"]
+CMD ["/app/re_lb_agent"]

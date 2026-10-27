@@ -1,7 +1,7 @@
 #pragma once
 // WeTalk 路由治理 API（route_client）：
 // 1) agent 地址由构造参数传入（容器化部署必需）
-// 2) 协议与 WeReactor（route-dns/agent）实现保持一致（UDP 私有协议 + lars.pb 消息）
+// 2) 协议与 WeReactor（route-dns/agent）实现保持一致（UDP 私有协议 + re.pb 消息）
 #include <string>
 #include <vector>
 #include <utility>

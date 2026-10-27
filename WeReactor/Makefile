@@ -1,5 +1,5 @@
 # WeTalk: upstream examples/api/tests are trimmed; only the modules we actually build are kept
-SUBDIRS = lars_reactor lars_dns lars_reporter lars_loadbalance_agent
+SUBDIRS = re_reactor re_dns re_reporter re_lb_agent
 
 .PHONY: all
 
