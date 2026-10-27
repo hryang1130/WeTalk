@@ -3,10 +3,10 @@ ARG DEBIAN_FRONTEND=noninteractive
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential make g++ protobuf-compiler libprotobuf-dev \
     libmysqlclient-dev libssl-dev libzstd-dev && rm -rf /var/lib/apt/lists/*
-WORKDIR /src/WeReactor
-COPY WeReactor/ ./
+WORKDIR /src/we_reactor
+COPY we_reactor/ ./
 RUN protoc --cpp_out=base/proto -Ibase/proto base/proto/re.proto
-# WeReactor 的 Makefile 找自带的 mysql-connector-c（未入库），用系统 libmysqlclient-dev 顶替
+# we_reactor 的 Makefile 找自带的 mysql-connector-c（未入库），用系统 libmysqlclient-dev 顶替
 RUN mkdir -p base/mysql-connector-c/lib && \
     ln -s /usr/include/mysql base/mysql-connector-c/include && \
     ln -s /usr/lib/x86_64-linux-gnu/libmysqlclient.a base/mysql-connector-c/lib/libmysqlclient.a
@@ -15,7 +15,7 @@ RUN make -C re_reactor && make -C re_reporter
 FROM ubuntu:22.04
 RUN apt-get update && apt-get install -y --no-install-recommends \
     libprotobuf23 libmysqlclient21 mysql-client-core-8.0 bash && rm -rf /var/lib/apt/lists/*
-COPY --from=builder /src/WeReactor/re_reporter/bin/* /app/
+COPY --from=builder /src/we_reactor/re_reporter/bin/* /app/
 COPY docker/route/wait-mysql.sh /app/wait-mysql.sh
 WORKDIR /app
 # 等 mysql 真实实例可查（TCP）后再启动，避开 init 临时实例窗口（见 wait-mysql.sh）

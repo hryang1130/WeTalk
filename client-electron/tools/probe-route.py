@@ -1,4 +1,4 @@
-# 临时探针：按 WeReactor 私有协议向 route-agent UDP 发 GetHostRequest(1,1)，打印原始响应。
+# 临时探针：按 we_reactor 私有协议向 route-agent UDP 发 GetHostRequest(1,1)，打印原始响应。
 # 用法: python3 probe-route.py [port] [host]
 import socket, struct, sys
 

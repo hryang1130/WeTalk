@@ -6,7 +6,7 @@
 >
 > **Deployment guide: [DEPLOY.md](DEPLOY.md)** (Linux server / local Docker Desktop, plus FAQ).
 
-> WeTalk started as an integration of [llfcchat](https://github.com/secondtonone1/llfcchat) (a C++ microservice chat system by 恋恋风辰), with a self-built UDP route-governance layer (route-dns / route-reporter / route-agent, implemented in `WeReactor/`) and substantial original work on top: real load balancing, a file service, read receipts, friend removal, offline messaging and more. Credits to the original authors.
+> WeTalk started as an integration of [llfcchat](https://github.com/secondtonone1/llfcchat) (a C++ microservice chat system by 恋恋风辰), with a self-built UDP route-governance layer (route-dns / route-reporter / route-agent, implemented in `we_reactor/`) and substantial original work on top: real load balancing, a file service, read receipts, friend removal, offline messaging and more. Credits to the original authors.
 
 The desktop client is **Electron** (`client-electron/`, feature list & protocol map in [client-electron/README-CLIENT.md](client-electron/README-CLIENT.md)).
 
@@ -106,7 +106,7 @@ the dedicated **ResourceServer data plane** (④, chunked upload + chunked downl
 ```
 wetalk/
 ├── server/                # server sources (with Linux CMake) + common/WetalkRouteClient + common/route (governance API)
-├── WeReactor/             # governance internals (re_reactor + re_dns / re_reporter / re_lb_agent; upstream examples and tests trimmed)
+├── we_reactor/             # governance internals (re_reactor + re_dns / re_reporter / re_lb_agent; upstream examples and tests trimmed)
 ├── docker/
 │   ├── Dockerfile.service / Dockerfile.varify / Dockerfile.route-*
 │   ├── configs/           # container config.ini per service (MySQL/Redis point at compose service names)
@@ -166,15 +166,15 @@ docker compose logs -f status route-agent
 
 ### Server / infrastructure
 
-- [ ] WeReactor's `get_route` seems to double-convert IP byte order (ntohl result assigned straight into `s_addr`); kept upstream behavior in `common/route/route_api.cpp` with a note — verify with `get_route` printing on first bring-up.
-- [ ] `WeReactor`'s `dns_route.cpp` reads serverip with `atoi` (overflows above 2^31); suggest `strtoul`.
+- [ ] we_reactor's `get_route` seems to double-convert IP byte order (ntohl result assigned straight into `s_addr`); kept upstream behavior in `common/route/route_api.cpp` with a note — verify with `get_route` printing on first bring-up.
+- [ ] `we_reactor`'s `dns_route.cpp` reads serverip with `atoi` (overflows above 2^31); suggest `strtoul`.
 - [ ] Generated protobuf files (message.pb.cc etc.) are from an old protoc; the Linux build regenerates them via CMake — mind versions if mixing with Windows builds.
 - [x] The outdated ChatServer2 copy (`server/_attic/`) has been deleted: it was a historical copy without the later changes, so builds always use `ChatServer` + the two config.ini files (compose chat1/chat2).
 - [x] VarifyServer is a Node service and only reads `config.json` (container copy in `docker/configs/VarifyServer/`); the redundant `config.ini` is gone. ResourceServer is self-built and configured under `docker/configs/`.
 
 ## Containerization caveat (inet_aton)
 
-The WeReactor reactor's `tcp_client`/`udp_client` parse addresses with `inet_aton()` and **cannot resolve compose service
+The we_reactor reactor's `tcp_client`/`udp_client` parse addresses with `inet_aton()` and **cannot resolve compose service
 names**. How this repo handles it:
 
 - `docker/route/route_agent.conf` `[reporter]`/`[dnsserver]` use fixed compose IPs (172.20.0.21 / 172.20.0.20); route-dns/route-reporter reach MySQL through libmysqlclient's own resolver, so service names work there.
@@ -186,7 +186,7 @@ names**. How this repo handles it:
 | Problem | Fix |
 | --- | --- |
 | `common/WetalkRouteClient.cpp` (the route client) was compiled by no target; status link always failed | CMake gained the `wetalk_common` static library, linked into every service |
-| the `route_api` library compiled both the self-built API and an early in-tree copy (since removed), duplicating symbols | only the self-built version is compiled; WeReactor headers no longer participate |
+| the `route_api` library compiled both the self-built API and an early in-tree copy (since removed), duplicating symbols | only the self-built version is compiled; we_reactor headers no longer participate |
 | `WetalkRouteClient.cpp` missing the `ConfigMgr.h` include | added (common/ and per-service ConfigMgr are identical in content; implementations are provided per service) |
 | `Dockerfile.service` had wrong output path `build/${SERVICE}/${SERVICE}` and copied nonexistent configs | fixed to `build/${SERVICE}`; configs are always mounted by compose (chat1/chat2 share the chat image) |
 | compose `depends_on` mixed map/list syntax (invalid) | unified to map form |

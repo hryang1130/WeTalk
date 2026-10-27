@@ -6,7 +6,7 @@
 >
 > **部署启动流程见 [DEPLOY.md](DEPLOY.md)**（Linux 服务器部署 / 本机 Docker Desktop 两种形态 + 常见问题）。
 
-> 项目由 [llfcchat](https://github.com/secondtonone1/llfcchat)（C++ 微服务聊天系统，原作者恋恋风辰；gitee 同 commit 镜像：[tfn3147546/llfcchat](https://gitee.com/tfn3147546/llfcchat)，HEAD `4a01c4f`）整合演化而来，自研了 UDP 路由治理层（route-dns / route-reporter / route-agent，实现于 `WeReactor/`），并做了大量扩展——让 StatusServer 通过治理组件做真正的负载均衡而不是读静态配置，新增文件服务、已读回执、删好友、离线消息等完整能力。致谢原作者。
+> 项目由 [llfcchat](https://github.com/secondtonone1/llfcchat)（C++ 微服务聊天系统，原作者恋恋风辰；gitee 同 commit 镜像：[tfn3147546/llfcchat](https://gitee.com/tfn3147546/llfcchat)，HEAD `4a01c4f`）整合演化而来，自研了 UDP 路由治理层（route-dns / route-reporter / route-agent，实现于 `we_reactor/`），并做了大量扩展——让 StatusServer 通过治理组件做真正的负载均衡而不是读静态配置，新增文件服务、已读回执、删好友、离线消息等完整能力。致谢原作者。
 
 桌面客户端为 **Electron**（`client-electron/`，功能清单与协议见 [client-electron/README-CLIENT.md](client-electron/README-CLIENT.md)）。
 
@@ -104,7 +104,7 @@ node test-profile.js    # /user_profile 端点联调
 ```
 wetalk/
 ├── server/                # 服务端源码（含 Linux CMake）+ common/WetalkRouteClient + common/route（路由治理 API）
-├── WeReactor/             # 治理层内部实现（WeTalk 内置，re_reactor + re_dns / re_reporter / re_lb_agent 四个可构建模块；上游示例与测试已剔除）
+├── we_reactor/             # 治理层内部实现（WeTalk 内置，re_reactor + re_dns / re_reporter / re_lb_agent 四个可构建模块；上游示例与测试已剔除）
 ├── docker/
 │   ├── Dockerfile.service / Dockerfile.varify / Dockerfile.route-*
 │   ├── configs/           # 每个服务的容器版 config.ini（Mysql/Redis 指向容器服务名）
@@ -160,15 +160,15 @@ docker compose logs -f status route-agent
 
 ### 服务端 / 基础设施
 
-- [ ] WeReactor 实现 `get_route` 的 IP 字节序转换疑似有双重转换（ntohl 后直接赋给 s_addr），已在 `common/route/route_api.cpp` 保持原行为并标注；首次联调时优先用 `get_route` 打印验证。
-- [ ] WeReactor 的 `dns_route.cpp` 用 `atoi` 读 serverip（>2^31 会溢出），建议后续改 `strtoul`。
+- [ ] we_reactor 实现 `get_route` 的 IP 字节序转换疑似有双重转换（ntohl 后直接赋给 s_addr），已在 `common/route/route_api.cpp` 保持原行为并标注；首次联调时优先用 `get_route` 打印验证。
+- [ ] we_reactor 的 `dns_route.cpp` 用 `atoi` 读 serverip（>2^31 会溢出），建议后续改 `strtoul`。
 - [ ] protobuf 生成文件（message.pb.cc 等）是老版本 protoc 产物，Linux 构建统一用 CMake 重新生成，Windows 侧如混用需注意版本。
 - [x] ChatServer2 旧源码副本（`server/_attic/`）已删除：它是不含后续自研修改的历史拷贝，构建一律用 `ChatServer` + 两份 config.ini（compose chat1/chat2）。
 - [x] VarifyServer 是 Node 服务，只读 `config.json`（容器版在 `docker/configs/VarifyServer/`）；多余的 `config.ini` 已删除。ResourceServer 为自建服务，其配置项已含在本目录 `docker/configs/`。
 
 ## 容器化联调注意（inet_aton 坑）
 
-WeReactor 的 reactor `tcp_client`/`udp_client` 用 `inet_aton()` 解析地址，**不能填容器服务名**。本工程处理：
+we_reactor 的 reactor `tcp_client`/`udp_client` 用 `inet_aton()` 解析地址，**不能填容器服务名**。本工程处理：
 
 - `docker/route/route_agent.conf` 的 `[reporter]`/`[dnsserver]` 直接写 compose 固定 IP（172.20.0.21 / 172.20.0.20）；route-dns/route-reporter 连 MySQL 走 libmysqlclient 自带域名解析，服务名可用。
 - `docker/configs/StatusServer/config.ini` 的 `[Route] AgentIp` 写 172.20.0.22。
@@ -179,7 +179,7 @@ WeReactor 的 reactor `tcp_client`/`udp_client` 用 `inet_aton()` 解析地址�
 | 问题 | 修复 |
 | --- | --- |
 | `common/WetalkRouteClient.cpp`（路由客户端）未被任何 target 编译，status 链接必失败 | CMake 新增 `wetalk_common` 静态库并链接进全部服务 |
-| `route_api` 库同时编译了自研版与一份早期随源码带进来的实现（现已删除），同名类重复符号 | 只编译自研版；WeReactor 头文件不再参与 |
+| `route_api` 库同时编译了自研版与一份早期随源码带进来的实现（现已删除），同名类重复符号 | 只编译自研版；we_reactor 头文件不再参与 |
 | `WetalkRouteClient.cpp` 缺 `ConfigMgr.h` include | 已补（common/ 与各服务目录的 ConfigMgr 内容一致，实现由服务自身提供） |
 | `Dockerfile.service` 产物路径 `build/${SERVICE}/${SERVICE}` 错、COPY 不存在的 config | 改为 `build/${SERVICE}`；config 一律由 compose 卷挂载（chat1/chat2 共用 chat 镜像） |
 | compose `depends_on` 混用 map/list 语法非法 | 统一 map 形式 |

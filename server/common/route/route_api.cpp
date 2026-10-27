@@ -1,6 +1,6 @@
 #include "route_api.h"
 #include "re.pb.h"
-#include "message.h" // WeReactor reactor: msg_head / MESSAGE_HEAD_LEN
+#include "message.h" // we_reactor reactor: msg_head / MESSAGE_HEAD_LEN
 #include <string.h>
 #include <sys/socket.h>
 #include <sys/types.h>
@@ -101,7 +101,7 @@ int route_client::get_route(int modid, int cmdid, route_set& route)
     for (int i = 0; i < rsp.host_size(); i++) {
         const re::HostInfo& host = rsp.host(i);
         struct in_addr inaddr;
-        inaddr.s_addr = ntohl(host.ip());   // 与 WeReactor reactor 的字节序约定保持一致
+        inaddr.s_addr = ntohl(host.ip());   // 与 we_reactor reactor 的字节序约定保持一致
         route.push_back(ip_port(inet_ntoa(inaddr), host.port()));
     }
     return re::RET_SUCC;
@@ -155,7 +155,7 @@ void route_client::report(int modid, int cmdid, const std::string& ip, int port,
     req.set_modid(modid);
     req.set_cmdid(cmdid);
 
-    // WeReactor proto：ReportRequest = {modid, cmdid, host(单个), retcode}
+    // we_reactor proto：ReportRequest = {modid, cmdid, host(单个), retcode}
     struct in_addr inaddr;
     inet_aton(ip.c_str(), &inaddr);
     re::HostInfo* host = req.mutable_host();

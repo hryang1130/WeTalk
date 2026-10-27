@@ -1,6 +1,6 @@
-# WeReactor
+# we_reactor
 
-WeReactor 是 **WeTalk 内置的 UDP 路由治理层实现**，为 WeTalk 的微服务提供「服务发现 + 负载均衡 +
+we_reactor 是 **WeTalk 内置的 UDP 路由治理层实现**，为 WeTalk 的微服务提供「服务发现 + 负载均衡 +
 调用健康度统计」能力。它由四个模块组成，随主仓库一起构建，不依赖任何外部包管理器：
 
 | 目录 | 产物 | 对外组件名 | 职责 |
@@ -33,7 +33,7 @@ msg_head { int32 msgid; int32 msglen; }  +  protobuf body
 protobuf 代码需要先生成：
 
 ```bash
-cd WeReactor
+cd we_reactor
 protoc --cpp_out=base/proto -Ibase/proto base/proto/re.proto
 make -C re_reactor && make -C re_dns && make -C re_reporter && make -C re_lb_agent
 ```

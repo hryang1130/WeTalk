@@ -21,9 +21,9 @@ pkg_check_modules(JSONCPP REQUIRED jsoncpp) # jammy 头文件在 /usr/include/js
 
 find_program(GRPC_CPP_PLUGIN grpc_cpp_plugin REQUIRED)
 
-set(RE_ACTOR_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../WeReactor)
+set(RE_ACTOR_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../we_reactor)
 
-# ---------- 路由治理协议（WeReactor 内置实现 base/proto/re.proto，协议包名 re） ----------
+# ---------- 路由治理协议（we_reactor 内置实现 base/proto/re.proto，协议包名 re） ----------
 set(RE_PROTO_SRC ${CMAKE_CURRENT_BINARY_DIR}/re.pb.cc)
 set(RE_PROTO_HDR ${CMAKE_CURRENT_BINARY_DIR}/re.pb.h)
 add_custom_command(
@@ -37,13 +37,13 @@ add_library(re_proto STATIC ${RE_PROTO_SRC})
 target_include_directories(re_proto PUBLIC ${CMAKE_CURRENT_BINARY_DIR})
 target_link_libraries(re_proto PUBLIC protobuf::libprotobuf)
 
-# ---------- 路由治理 reactor 网络库（WeReactor 内置实现，补丁须带 "WeTalk patch" 注释） ----------
+# ---------- 路由治理 reactor 网络库（we_reactor 内置实现，补丁须带 "WeTalk patch" 注释） ----------
 file(GLOB RE_ACTOR_SRC ${RE_ACTOR_DIR}/re_reactor/src/*.cpp)
 add_library(re_reactor STATIC ${RE_ACTOR_SRC})
 target_include_directories(re_reactor PUBLIC ${RE_ACTOR_DIR}/re_reactor/include)
 target_link_libraries(re_reactor PUBLIC pthread dl protobuf::libprotobuf)
 
-# ---------- WeTalk 路由治理 API（route_client，自研版；WeReactor 里的旧版 API 实现已剔除，避免同名类符号重复） ----------
+# ---------- WeTalk 路由治理 API（route_client，自研版；we_reactor 里的旧版 API 实现已剔除，避免同名类符号重复） ----------
 add_library(route_api STATIC common/route/route_api.cpp)
 target_include_directories(route_api PUBLIC common/route ${CMAKE_CURRENT_BINARY_DIR})
 target_link_libraries(route_api PUBLIC re_reactor re_proto)

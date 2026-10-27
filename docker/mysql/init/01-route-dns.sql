@@ -36,7 +36,7 @@ CREATE TABLE IF NOT EXISTS ServerCallStatus (
   UNIQUE KEY uk_status (modid, cmdid, ip, port, caller)
 ) ENGINE=InnoDB;
 
--- 默认路由必须在 init 阶段就位（WeReactor 后台加载逻辑曾因 SubscribeList 锁未初始化
+-- 默认路由必须在 init 阶段就位（we_reactor 后台加载逻辑曾因 SubscribeList 锁未初始化
 -- 卡死、已修复，此处直接种好数据进一步保证 dns 首启必有路由），seed.sh 会在部署时
 -- 按 .env 的 CHAT_ADV_IP 全量替换这里的默认值。
 INSERT IGNORE INTO RouteData (modid, cmdid, serverip, serverport) VALUES
