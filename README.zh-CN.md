@@ -1,6 +1,6 @@
 # WeTalk — C++ IM 微服务 + 服务治理（Docker Compose 一键部署）
 
-**English** | [简体中文](README.zh-CN.md)
+[English](README.md) | **简体中文**
 
 > WeTalk 是一个 C++ 微服务即时通讯系统：接入网关、聊天服务、文件服务、验证码服务，外加基于 UDP 调度的服务治理（负载均衡/故障剔除/路由热更新），全部容器化，`docker compose up -d --build` 一键起。
 >

@@ -2,10 +2,10 @@ FROM ubuntu:22.04 AS builder
 ARG DEBIAN_FRONTEND=noninteractive
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential cmake g++ protobuf-compiler libprotobuf-dev \
-    libmysqlclient-dev libssl-dev libzstd-dev && rm -rf /var/lib/apt/lists/*
+    libmysqlclient-dev && rm -rf /var/lib/apt/lists/*
 WORKDIR /src/we_reactor
 COPY we_reactor/ ./
-RUN cmake -S . -B build -DCMAKE_BUILD_TYPE=Release && \
+RUN cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DWE_REACTOR_BINS=re_reporter && \
     cmake --build build -j"$(nproc)" --target re_reporter
 
 FROM ubuntu:22.04

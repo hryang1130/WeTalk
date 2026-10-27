@@ -1,6 +1,5 @@
 #include "route_api.h"
 #include "re.pb.h"
-#include "message.h" // we_reactor reactor: msg_head / MESSAGE_HEAD_LEN
 #include <string.h>
 #include <sys/socket.h>
 #include <sys/types.h>
@@ -78,24 +77,24 @@ int route_client::get_route(int modid, int cmdid, route_set& route)
     req.set_cmdid(cmdid);
 
     char write_buf[4096], read_buf[80 * 1024];
-    msg_head head;
+    route_msg_head head;
     head.msglen = req.ByteSizeLong();
     head.msgid = re::ID_API_GetRouteRequest;
-    memcpy(write_buf, &head, MESSAGE_HEAD_LEN);
-    req.SerializeToArray(write_buf + MESSAGE_HEAD_LEN, head.msglen);
+    memcpy(write_buf, &head, ROUTE_HEAD_LEN);
+    req.SerializeToArray(write_buf + ROUTE_HEAD_LEN, head.msglen);
 
     int index = (modid + cmdid) % 3;
-    int ret = sendto(_sockfd[index], write_buf, head.msglen + MESSAGE_HEAD_LEN, 0, NULL, 0);
+    int ret = sendto(_sockfd[index], write_buf, head.msglen + ROUTE_HEAD_LEN, 0, NULL, 0);
     if (ret == -1) { perror("sendto"); return re::RET_SYSTEM_ERROR; }
 
     re::GetRouteResponse rsp;
     int message_len = recvfrom(_sockfd[index], read_buf, sizeof(read_buf), 0, NULL, NULL);
     if (message_len == -1) { perror("recvfrom"); return re::RET_SYSTEM_ERROR; }
 
-    memcpy(&head, read_buf, MESSAGE_HEAD_LEN);
+    memcpy(&head, read_buf, ROUTE_HEAD_LEN);
     if (head.msgid != re::ID_API_GetRouteResponse) return re::RET_SYSTEM_ERROR;
 
-    ret = rsp.ParseFromArray(read_buf + MESSAGE_HEAD_LEN, message_len - MESSAGE_HEAD_LEN);
+    ret = rsp.ParseFromArray(read_buf + ROUTE_HEAD_LEN, message_len - ROUTE_HEAD_LEN);
     if (!ret || rsp.modid() != modid || rsp.cmdid() != cmdid) return re::RET_SYSTEM_ERROR;
 
     for (int i = 0; i < rsp.host_size(); i++) {
@@ -116,24 +115,24 @@ int route_client::get_host(int modid, int cmdid, std::string& ip, int& port)
     req.set_cmdid(cmdid);
 
     char write_buf[4096], read_buf[4096];
-    msg_head head;
+    route_msg_head head;
     head.msglen = req.ByteSizeLong();
     head.msgid = re::ID_GetHostRequest;
-    memcpy(write_buf, &head, MESSAGE_HEAD_LEN);
-    req.SerializeToArray(write_buf + MESSAGE_HEAD_LEN, head.msglen);
+    memcpy(write_buf, &head, ROUTE_HEAD_LEN);
+    req.SerializeToArray(write_buf + ROUTE_HEAD_LEN, head.msglen);
 
     int index = (modid + cmdid) % 3;
-    int ret = sendto(_sockfd[index], write_buf, head.msglen + MESSAGE_HEAD_LEN, 0, NULL, 0);
+    int ret = sendto(_sockfd[index], write_buf, head.msglen + ROUTE_HEAD_LEN, 0, NULL, 0);
     if (ret == -1) { perror("sendto"); return re::RET_SYSTEM_ERROR; }
 
     re::GetHostResponse rsp;
     int message_len = recvfrom(_sockfd[index], read_buf, sizeof(read_buf), 0, NULL, NULL);
     if (message_len == -1) { perror("recvfrom"); return re::RET_SYSTEM_ERROR; }
 
-    memcpy(&head, read_buf, MESSAGE_HEAD_LEN);
+    memcpy(&head, read_buf, ROUTE_HEAD_LEN);
     if (head.msgid != re::ID_GetHostResponse) return re::RET_SYSTEM_ERROR;
 
-    ret = rsp.ParseFromArray(read_buf + MESSAGE_HEAD_LEN, message_len - MESSAGE_HEAD_LEN);
+    ret = rsp.ParseFromArray(read_buf + ROUTE_HEAD_LEN, message_len - ROUTE_HEAD_LEN);
     if (!ret || rsp.modid() != modid || rsp.cmdid() != cmdid) return re::RET_SYSTEM_ERROR;
 
     // 必须检查 retcode：agent 无路由/过载时回 RET_NOEXIST/RET_OVERLOAD，
@@ -164,13 +163,13 @@ void route_client::report(int modid, int cmdid, const std::string& ip, int port,
     req.set_retcode(retcode);
 
     char write_buf[4096];
-    msg_head head;
+    route_msg_head head;
     head.msglen = req.ByteSizeLong();
     head.msgid = re::ID_ReportRequest;
-    memcpy(write_buf, &head, MESSAGE_HEAD_LEN);
-    req.SerializeToArray(write_buf + MESSAGE_HEAD_LEN, head.msglen);
+    memcpy(write_buf, &head, ROUTE_HEAD_LEN);
+    req.SerializeToArray(write_buf + ROUTE_HEAD_LEN, head.msglen);
 
     // report 走第二个 agent udp server
-    int ret = sendto(_sockfd[1], write_buf, head.msglen + MESSAGE_HEAD_LEN, 0, NULL, 0);
+    int ret = sendto(_sockfd[1], write_buf, head.msglen + ROUTE_HEAD_LEN, 0, NULL, 0);
     if (ret == -1) perror("sendto(report)");
 }

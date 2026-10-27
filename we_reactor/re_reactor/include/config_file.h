@@ -20,14 +20,8 @@ public:
     //获取字符串类型配置信息
     std::string GetString(const std::string& section, const std::string& key, const std::string& default_value = "");
 
-    //字符串集合配置信息
-    std::vector<std::string> GetStringList(const std::string& section, const std::string& key);
-
     //获取整型类型配置信息
     unsigned GetNumber(const std::string& section, const std::string& key, unsigned default_value = 0);
-
-    //获取布尔类型配置信息
-    bool GetBool(const std::string& section, const std::string& key, bool default_value = false);
 
     //获取浮点类型配置信息
     float GetFloat(const std::string& section, const std::string& key, const float& default_value);

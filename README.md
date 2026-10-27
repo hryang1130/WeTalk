@@ -1,12 +1,10 @@
 # WeTalk — C++ IM Microservices with Service Governance, One-Command Deploy
 
-**English** | [简体中文](README.zh-CN.md)
+[English](README.md) | [简体中文](README.zh-CN.md)
 
 > WeTalk is a C++ microservice instant-messaging system: an access gateway, chat servers, a file service and a verification-code service, plus UDP-based service governance (load balancing / failure eviction / hot route updates) — all containerized, brought up with a single `docker compose up -d --build`.
 >
 > **Deployment guide: [DEPLOY.md](DEPLOY.md)** (Linux server / local Docker Desktop, plus FAQ).
-
-> WeTalk started as an integration of [llfcchat](https://github.com/secondtonone1/llfcchat) (a C++ microservice chat system by 恋恋风辰), with a self-built UDP route-governance layer (route-dns / route-reporter / route-agent, implemented in `we_reactor/`) and substantial original work on top: real load balancing, a file service, read receipts, friend removal, offline messaging and more. Credits to the original authors.
 
 The desktop client is **Electron** (`client-electron/`, feature list & protocol map in [client-electron/README-CLIENT.md](client-electron/README-CLIENT.md)).
 
@@ -76,37 +74,12 @@ the dedicated **ResourceServer data plane** (④, chunked upload + chunked downl
 - **Offline messaging backed by MySQL**: messages land in `chat_message` (`status=0` unread); the login response carries
   `unread_list`, so nothing is lost across reconnects or re-logins.
 
-### Key integration changes (vs. the original llfcchat)
-
-| Area | Original | Integrated |
-| --- | --- | --- |
-| `StatusServiceImpl::getChatServer()` | reads a static list from config.ini, returns the first | prefers `WetalkRouteClient::getHost()` (agent returns healthy nodes by failure/overload window), falls back to static config |
-| Call-result feedback | none | StatusServer reports every successful scheduling via `WetalkRouteClient::report()`; the agent tracks node health in a sliding window |
-| Node registration | hard-coded in config.ini | routes live in MySQL `wetalk_route.RouteData` (modid=1, cmdid=1), with versioned hot updates (RouteChange) |
-| Build | Windows VS project, local machine only | Linux CMake build + one Docker image per service, `compose up` in one command |
-| Governance API | agent address hard-coded 127.0.0.1 | `server/common/route/route_api.cpp` now takes addresses via constructor parameters (required for container networking) |
-
-### Original work in this repo (diff of `server/` vs. upstream llfcchat)
-
-> Verified file-by-file with a diff script (2026-10-22, upstream commit `4a01c4f`). These changes are unique to this repo:
-
-| Area | Location | Content |
-| --- | --- | --- |
-| Image messages | `ChatServer/const.h`, `LogicSystem.*` | new protocol `ID_IMG_CHAT_MSG_REQ/RSP/NOTIFY` (1035/1036/1039) and the `DealChatImgMsg` flow (md5 dedup, unique_id, token check) |
-| Message reliability | `ChatServer/const.h`, `MysqlDao.*`, `MysqlMgr.*` | `AddChatMsg` persistence + a `MsgStatus` state machine (UN_READ / SEND_FAILED / READED / UN_UPLOAD) powering offline messaging and read receipts |
-| Concurrency fix | `ChatServer/MysqlDao.cpp` | friend-relation inserts use a fixed uid ordering (smaller uid first), eliminating deadlocks / unique-key conflicts on concurrent mutual adds |
-| Logout security | `ChatServer/CSession.cpp` | the Redis token (`USERTOKENPREFIX+uid`) is deleted on logout |
-| Redis capability | `StatusServer/RedisMgr.*` | added `SetWithExpire` (atomic SETEX) for verification codes / tokens |
-| File service | `ResourceServer/` (48 files; not in the original) | self-built file server: FileInfo / FileSystem / FileWorker / LogicWorker, Redis `DistLock`, file-info sync protocol `ID_FILE_INFO_SYNC_REQ/RSP` (1041/1042), Gate returns `reshost/resport` in the login response |
-| Social extensions | `ChatServer/const.h`, `LogicSystem.*`, `MysqlDao.*`, `ChatGrpcClient.*`, `ChatServiceImpl.*`, `message.proto` | added 2026-10-23: friend removal `1043/1044/1045` (bidirectional), read receipts `1046/1047/1048` (`chat_message.status` 0→2 + targeted UPDATE), server-side auto-creation of `chat_thread` on first message; cross-server notify via new gRPC `NotifyReadMsg/NotifyDelFriend` |
-| Profile editing | `GateServer/LogicSystem.cpp`, `MysqlDao.*` | HTTP `POST /user_profile`: Redis token check → update user nick/desc (`desc` is a reserved word, needs backticks) → evict the `ubaseinfo_<uid>` cache |
-
 ### Directory
 
 ```
 wetalk/
 ├── server/                # server sources (with Linux CMake) + common/WetalkRouteClient + common/route (governance API)
-├── we_reactor/             # governance internals (re_reactor + re_dns / re_reporter / re_lb_agent; upstream examples and tests trimmed)
+├── we_reactor/            # governance internals, built in-tree: re_reactor + re_dns / re_reporter / re_lb_agent (4 buildable modules)
 ├── docker/
 │   ├── Dockerfile.service / Dockerfile.varify / Dockerfile.route-*
 │   ├── configs/           # container config.ini per service (MySQL/Redis point at compose service names)
@@ -124,14 +97,10 @@ wetalk/
 ```bash
 cp .env.example .env
 # Edit .env: set CHAT_ADV_IP1/2 to your LAN IP (used by the client to reach 8090/8091; 127.0.0.1 for local dev)
-# Edit docker/configs/VarifyServer/config.json: your own 163 SMTP auth code (registration emails fail without it)
+# Edit docker/configs/VarifyServer/config.json: your own 163 SMTP auth code
 docker compose up -d --build
 docker compose logs -f status route-agent
 ```
-
-> **Upgrading from an older deployment**: the business database was renamed `llfc` → `wetalk`. The old database inside the
-> MySQL volume is not migrated automatically — run `docker compose down -v` (wipes data) and `up -d --build` again so the
-> init scripts create the new database with seed data.
 
 ## Ports
 
@@ -166,7 +135,7 @@ docker compose logs -f status route-agent
 
 ### Server / infrastructure
 
-- [ ] we_reactor's `get_route` seems to double-convert IP byte order (ntohl result assigned straight into `s_addr`); kept upstream behavior in `common/route/route_api.cpp` with a note — verify with `get_route` printing on first bring-up.
+- [ ] we_reactor's `get_route` seems to double-convert IP byte order (ntohl result assigned straight into `s_addr`); kept existing behavior in `common/route/route_api.cpp` with a note — verify with `get_route` printing on first bring-up.
 - [ ] `we_reactor`'s `dns_route.cpp` reads serverip with `atoi` (overflows above 2^31); suggest `strtoul`.
 - [ ] Generated protobuf files (message.pb.cc etc.) are from an old protoc; the Linux build regenerates them via CMake — mind versions if mixing with Windows builds.
 - [x] The outdated ChatServer2 copy (`server/_attic/`) has been deleted: it was a historical copy without the later changes, so builds always use `ChatServer` + the two config.ini files (compose chat1/chat2).

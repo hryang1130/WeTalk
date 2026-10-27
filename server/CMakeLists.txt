@@ -23,16 +23,17 @@ find_program(GRPC_CPP_PLUGIN grpc_cpp_plugin REQUIRED)
 
 set(RE_ACTOR_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../we_reactor)
 
-# ---------- 路由治理实现（we_reactor 内置，自带 CMake，提供 re_proto + re_reactor） ----------
-# 服务端只需要这两个静态库；re_dns / re_reporter / re_lb_agent 三个可执行体
-# 由 docker/Dockerfile.route-* 独立构建，这里关掉以免引入 MySQL 依赖。
+# ---------- 路由治理实现（we_reactor 内置，自带 CMake，只取 re_proto） ----------
+# 服务端只需要 re.pb（治理层消息体 + 返回码）；re_reactor 网络库和三个可执行体
+# 都由 docker/Dockerfile.route-* 独立构建，这里关掉以免拉进 MySQL / reactor 依赖。
 set(WE_REACTOR_BUILD_BINS OFF CACHE BOOL "we_reactor: 关闭三个可执行体（服务端构建用）" FORCE)
+set(WE_REACTOR_BUILD_NET OFF CACHE BOOL "we_reactor: 关闭 re_reactor 网络库（服务端构建用）" FORCE)
 add_subdirectory(${RE_ACTOR_DIR} ${CMAKE_CURRENT_BINARY_DIR}/we_reactor)
 
 # ---------- WeTalk 路由治理 API（route_client，自研版；we_reactor 里的旧版 API 实现已剔除，避免同名类符号重复） ----------
 add_library(route_api STATIC common/route/route_api.cpp)
 target_include_directories(route_api PUBLIC common/route)
-target_link_libraries(route_api PUBLIC re_reactor re_proto)
+target_link_libraries(route_api PUBLIC re_proto)
 
 # ---------- WeTalk 公共组件（WetalkRouteClient：路由治理的线程安全封装） ----------
 add_library(wetalk_common STATIC common/WetalkRouteClient.cpp)

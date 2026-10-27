@@ -1,16 +1,16 @@
 FROM ubuntu:22.04 AS builder
 ARG DEBIAN_FRONTEND=noninteractive
+# route-agent 不连 MySQL（路由表在内存），只需 protobuf + reactor 网络库
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    build-essential cmake g++ protobuf-compiler libprotobuf-dev \
-    libmysqlclient-dev libssl-dev libzstd-dev && rm -rf /var/lib/apt/lists/*
+    build-essential cmake g++ protobuf-compiler libprotobuf-dev && rm -rf /var/lib/apt/lists/*
 WORKDIR /src/we_reactor
 COPY we_reactor/ ./
-RUN cmake -S . -B build -DCMAKE_BUILD_TYPE=Release && \
+RUN cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DWE_REACTOR_BINS=re_lb_agent && \
     cmake --build build -j"$(nproc)" --target re_lb_agent
 
 FROM ubuntu:22.04
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    libprotobuf23 libmysqlclient21 && rm -rf /var/lib/apt/lists/*
+    libprotobuf23 && rm -rf /var/lib/apt/lists/*
 COPY --from=builder /src/we_reactor/build/bin/re_lb_agent /app/re_lb_agent
 WORKDIR /app
 CMD ["/app/re_lb_agent"]

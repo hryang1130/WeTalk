@@ -26,8 +26,6 @@ class msg_router
 {
 public:
     msg_router():_router(),_args() {
-        //printf("msg_router init...\n");
-        printf(" \n");
     }  
 
     //给一个消息ID注册一个对应的回调业务函数
@@ -48,9 +46,6 @@ public:
     //调用注册的对应的回调业务函数
     void call(int msgid, uint32_t msglen, const char *data, net_connection *net_conn) 
     {
-        //printf("call msgid = %d\n", msgid);
-        //printf("call data = %s\n", data);
-        //printf("call msglen = %d\n", msglen);
         //判断msgid对应的回调是否存在
         if (_router.find(msgid) == _router.end()) {
             fprintf(stderr, "msgid %d is not register!\n", msgid);

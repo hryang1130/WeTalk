@@ -4,7 +4,6 @@
 #include <iostream>
 #include <sstream>
 #include <assert.h>
-#include <strings.h>
 
 config_file* config_file::config = NULL;
 
@@ -46,7 +45,7 @@ float config_file::GetFloat(const std::string& section, const std::string& key, 
     return fresult;
 }
 
-//价值配置文件
+//加载配置文件
 bool config_file::Load(const std::string& path)
 {
     std::ifstream ifs(path.c_str());
@@ -85,7 +84,7 @@ bool config_file::Load(const std::string& path)
         std::string value = line.substr(equ_pos + 1);
         key = trim(key);
         value = trim(value);
-        
+
         if (key.empty())
         {
             continue;
@@ -110,32 +109,6 @@ bool config_file::Load(const std::string& path)
     return true;
 }
 
-std::vector<std::string> config_file::GetStringList(const std::string& section, const std::string& key)
-{
-    std::vector<std::string> v;
-    std::string str = GetString(section, key, "");
-    std::string sep = ", \t";
-    std::string substr;
-    std::string::size_type start = 0;
-    std::string::size_type index;
-
-    while ((index = str.find_first_of(sep, start)) != std::string::npos)
-    {
-        substr = str.substr(start, index - start);
-        v.push_back(substr);
-
-        start = str.find_first_not_of(sep, index);
-        if (start == std::string::npos)
-        {
-            return v;
-        }
-    }
-
-    substr = str.substr(start);
-    v.push_back(substr);
-    return v;
-}
-
 //获取整型类型键值对
 unsigned config_file::GetNumber(const std::string& section, const std::string& key, unsigned default_value)
 {
@@ -146,24 +119,6 @@ unsigned config_file::GetNumber(const std::string& section, const std::string& k
         if (it1 != it->second->end())
         {
             return parseNumber(it1->second);
-        }
-    }
-    return default_value;
-}
-
-//获取布尔类型键值对
-bool config_file::GetBool(const std::string& section, const std::string& key, bool default_value)
-{
-    STR_MAP_ITER it = _map.find(section);
-    if (it != _map.end())
-    {
-        std::map<std::string, std::string>::const_iterator it1 = it->second->find(key);
-        if (it1 != it->second->end())
-        {
-            if (strcasecmp(it1->second.c_str(), "true") == 0)
-            {
-                return true;
-            }
         }
     }
     return default_value;
@@ -250,5 +205,3 @@ bool config_file::setPath(const std::string& path)
     //加载文件
     return config->Load(path);
 }
-
-

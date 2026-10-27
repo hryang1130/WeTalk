@@ -1,0 +1,12 @@
+# 构建上下文瘦身：这三个目录占了 1.2G+，镜像构建完全用不到。
+# 如果以后有需要进镜像的新目录，记得从这里删掉对应规则。
+.git
+client-electron/node_modules
+client-electron/.profile-A
+client-electron/.profile-B
+
+# 本地构建产物 / 日志 / 临时文件
+build
+**/build/
+**/*.log
+.tmp*

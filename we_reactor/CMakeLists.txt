@@ -11,8 +11,13 @@ if(CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
     endif()
 endif()
 
-# 服务端只需要 re_reactor / re_proto 两个库，会把它关掉，避免引入 MySQL 依赖
+# 服务端只需要 re_proto（治理层消息体），会把它关掉，避免编译整个 reactor 网络库
+option(WE_REACTOR_BUILD_NET "构建 re_reactor 网络库（re_dns/re_reporter/re_lb_agent 依赖它）" ON)
+# 三个可执行体：只有独立构建（docker/Dockerfile.route-*）时才需要
 option(WE_REACTOR_BUILD_BINS "构建 re_dns / re_reporter / re_lb_agent 三个可执行体" ON)
+# 三个镜像各自只构建自己那一个（分号分隔可多选）。route-agent 不连库，
+# 单独构建它就不会触发 MySQL 依赖检查，镜像里也就不必装 libmysqlclient-dev
+set(WE_REACTOR_BINS "re_dns;re_reporter;re_lb_agent" CACHE STRING "要构建的可执行体列表")
 
 set(WE_REACTOR_ROOT ${CMAKE_CURRENT_SOURCE_DIR})
 set(RE_BASE ${WE_REACTOR_ROOT}/base)
@@ -32,37 +37,45 @@ target_link_libraries(re_proto PUBLIC protobuf::libprotobuf)
 # 网络库：re_reactor（事件循环 / TCP·UDP 连接 / 线程池）
 #   注意：本目录代码较老，用了 <ext/hash_map> 等已废弃接口，故屏蔽 deprecation 警告
 # ---------------------------------------------------------------------------
-file(GLOB RE_REACTOR_SRCS ${WE_REACTOR_ROOT}/re_reactor/src/*.cpp)
-add_library(re_reactor STATIC ${RE_REACTOR_SRCS})
-target_include_directories(re_reactor PUBLIC ${WE_REACTOR_ROOT}/re_reactor/include)
-target_compile_options(re_reactor PRIVATE -Wno-deprecated)
-target_link_libraries(re_reactor PUBLIC Threads::Threads ${CMAKE_DL_LIBS} protobuf::libprotobuf)
+if(WE_REACTOR_BUILD_NET)
+    file(GLOB RE_REACTOR_SRCS ${WE_REACTOR_ROOT}/re_reactor/src/*.cpp)
+    add_library(re_reactor STATIC ${RE_REACTOR_SRCS})
+    target_include_directories(re_reactor PUBLIC ${WE_REACTOR_ROOT}/re_reactor/include)
+    target_compile_options(re_reactor PRIVATE -Wno-deprecated)
+    target_link_libraries(re_reactor PUBLIC Threads::Threads ${CMAKE_DL_LIBS})
+endif()
 
 # ---------------------------------------------------------------------------
 # 三个可执行体：re_dns（route-dns）/ re_reporter（route-reporter）/ re_lb_agent（route-agent）
-#   它们都用 MySQL C 客户端读路由表 / 上报统计
+#   只有 re_dns / re_reporter 直接用 MySQL C 客户端读写路由表；
+#   re_lb_agent 的路由表在内存里，不连库，所以不链 libmysqlclient
 # ---------------------------------------------------------------------------
 if(WE_REACTOR_BUILD_BINS)
-    find_path(MYSQL_INCLUDE_DIR NAMES mysql.h PATH_SUFFIXES mysql)
-    find_library(MYSQL_LIBRARY NAMES mysqlclient)
-    if(NOT MYSQL_INCLUDE_DIR OR NOT MYSQL_LIBRARY)
-        message(FATAL_ERROR
-            "we_reactor: 找不到 MySQL C 客户端（mysql.h / libmysqlclient）。\n"
-            "  Ubuntu: apt-get install -y libmysqlclient-dev")
+    if(NOT WE_REACTOR_BUILD_NET)
+        message(FATAL_ERROR "we_reactor: WE_REACTOR_BUILD_BINS 需要 WE_REACTOR_BUILD_NET=ON")
     endif()
 
-    # MySQL 8 的 mysql.h 已删除 my_bool，而本目录代码仍在使用，故统一别名到 bool
-    set(RE_BIN_LIBS ${MYSQL_LIBRARY} ssl crypto zstd m resolv Threads::Threads ${CMAKE_DL_LIBS})
-
-    foreach(mod IN ITEMS re_dns re_reporter re_lb_agent)
+    foreach(mod IN LISTS WE_REACTOR_BINS)
         file(GLOB RE_MOD_SRCS ${WE_REACTOR_ROOT}/${mod}/src/*.cpp)
         add_executable(${mod} ${RE_MOD_SRCS})
-        target_include_directories(${mod} PRIVATE
-            ${WE_REACTOR_ROOT}/${mod}/include
-            ${MYSQL_INCLUDE_DIR})
-        target_compile_definitions(${mod} PRIVATE my_bool=bool)
+        target_include_directories(${mod} PRIVATE ${WE_REACTOR_ROOT}/${mod}/include)
         target_compile_options(${mod} PRIVATE -Wno-deprecated)
-        target_link_libraries(${mod} PRIVATE re_reactor re_proto ${RE_BIN_LIBS})
+        target_link_libraries(${mod} PRIVATE re_reactor re_proto)
+
+        if(NOT "${mod}" STREQUAL "re_lb_agent")
+            find_path(MYSQL_INCLUDE_DIR NAMES mysql.h PATH_SUFFIXES mysql)
+            find_library(MYSQL_LIBRARY NAMES mysqlclient)
+            if(NOT MYSQL_INCLUDE_DIR OR NOT MYSQL_LIBRARY)
+                message(FATAL_ERROR
+                    "we_reactor: 找不到 MySQL C 客户端（mysql.h / libmysqlclient）。\n"
+                    "  Ubuntu: apt-get install -y libmysqlclient-dev")
+            endif()
+            target_include_directories(${mod} PRIVATE ${MYSQL_INCLUDE_DIR})
+            # MySQL 8 的 mysql.h 已删除 my_bool，而本目录代码仍在使用，故统一别名到 bool
+            target_compile_definitions(${mod} PRIVATE my_bool=bool)
+            target_link_libraries(${mod} PRIVATE ${MYSQL_LIBRARY})
+        endif()
+
         # 产物统一放到 build/bin，便于 Dockerfile 直接 COPY
         set_target_properties(${mod} PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
     endforeach()

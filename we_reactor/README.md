@@ -29,20 +29,27 @@ msg_head { int32 msgid; int32 msglen; }  +  protobuf body
 
 ## 构建
 
-依赖 `cmake ≥ 3.16`、`g++`、`protobuf`（`protoc` + `libprotobuf`）、`libssl`、`libzstd`、
-`libmysqlclient`。全部走 CMake，`re.pb.cc` 由 CMake 自动调用 protoc 生成。
+依赖 `cmake ≥ 3.16`、`g++`、`protobuf`（`protoc` + `libprotobuf`）；只有 `re_dns` / `re_reporter` 额外需要
+`libmysqlclient`（`re_lb_agent` 的路由表在内存里，不连库）。全部走 CMake，`re.pb.cc` 由 CMake 自动调用 protoc 生成。
 
 ```bash
 # 三个可执行体（route-dns / route-reporter / route-agent），产物在 build/bin/
 cmake -S we_reactor -B build -DCMAKE_BUILD_TYPE=Release
 cmake --build build -j"$(nproc)"
 
-# 只要库（re_reactor + re_proto，服务端构建就是这么用的）
-cmake -S we_reactor -B build -DCMAKE_BUILD_TYPE=Release -DWE_REACTOR_BUILD_BINS=OFF
+# 只构建其中一个（三个镜像各自这么做：route-agent 因此完全不碰 MySQL）
+cmake -S we_reactor -B build -DCMAKE_BUILD_TYPE=Release -DWE_REACTOR_BINS=re_lb_agent
+cmake --build build -j"$(nproc)" --target re_lb_agent
+
+# 只要 re.pb（服务端构建就是这么用的：不编译 reactor 网络库，也不需要 MySQL）
+cmake -S we_reactor -B build -DCMAKE_BUILD_TYPE=Release \
+      -DWE_REACTOR_BUILD_BINS=OFF -DWE_REACTOR_BUILD_NET=OFF
 ```
 
-`server/CMakeLists.txt` 通过 `add_subdirectory` 引入本目录，并置 `WE_REACTOR_BUILD_BINS=OFF`，
-所以服务端构建不会拉进 MySQL 依赖。Docker 构建见 `docker/Dockerfile.route-{dns,reporter,agent}`。
+`server/CMakeLists.txt` 通过 `add_subdirectory` 引入本目录，并置 `WE_REACTOR_BUILD_BINS=OFF` /
+`WE_REACTOR_BUILD_NET=OFF` —— 服务端只用 `re.pb` 的消息定义，自己实现 UDP 客户端
+（`server/common/route/route_api.cpp`），所以既不编 reactor 也不拉 MySQL 依赖。
+Docker 构建见 `docker/Dockerfile.route-{dns,reporter,agent}`。
 
 ## WeTalk patch 清单
 
