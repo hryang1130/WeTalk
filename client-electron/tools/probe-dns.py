@@ -1,4 +1,4 @@
-# 临时探针：按 Lars 私有协议向 dns TCP 7778 发 GetRouteRequest(1,1)，打印原始响应。
+# 临时探针：按 WeReactor 私有协议向 route-dns TCP 7778 发 GetRouteRequest(1,1)，打印原始响应。
 # 用法: python3 probe-dns.py [host] [port]
 import socket, struct, sys
 

@@ -71,7 +71,7 @@ npm run shot        # 输出 client-electron/__ui/01-auth … 06-profile.png
    - `POST /get_varifycode` `{email}` → 发送邮箱验证码
    - `POST /user_register` `{email,user,nick,passwd,confirm,icon,varifycode}` → `{uid}`
    - `POST /user_login` `{email,passwd}` → `{uid, token, chathost, chatport, reshost, resport}`
-     （chathost 由 StatusServer→Lars 负载均衡选出，这正是整合项目的核心链路）
+     （chathost 由 StatusServer→route-agent 负载均衡选出，这正是整合项目的核心链路）
    - `POST /user_profile` `{uid, token, nick, desc}` → 更新个人资料（校验 Redis token，更新 MySQL 后删除 `ubaseinfo_<uid>` 缓存）
 2. **TCP 长连接**（ChatServer :8090/:8091，Asio）：
    - 帧格式：`msgid(2B 大端) + msglen(2B 大端) + JSON body`
