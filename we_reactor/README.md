@@ -29,17 +29,20 @@ msg_head { int32 msgid; int32 msglen; }  +  protobuf body
 
 ## 构建
 
-依赖 `g++`、`make`、`protobuf`（`protoc` + `libprotobuf`）、`libssl`、`libzstd`、`libmysqlclient`。
-protobuf 代码需要先生成：
+依赖 `cmake ≥ 3.16`、`g++`、`protobuf`（`protoc` + `libprotobuf`）、`libssl`、`libzstd`、
+`libmysqlclient`。全部走 CMake，`re.pb.cc` 由 CMake 自动调用 protoc 生成。
 
 ```bash
-cd we_reactor
-protoc --cpp_out=base/proto -Ibase/proto base/proto/re.proto
-make -C re_reactor && make -C re_dns && make -C re_reporter && make -C re_lb_agent
+# 三个可执行体（route-dns / route-reporter / route-agent），产物在 build/bin/
+cmake -S we_reactor -B build -DCMAKE_BUILD_TYPE=Release
+cmake --build build -j"$(nproc)"
+
+# 只要库（re_reactor + re_proto，服务端构建就是这么用的）
+cmake -S we_reactor -B build -DCMAKE_BUILD_TYPE=Release -DWE_REACTOR_BUILD_BINS=OFF
 ```
 
-Docker 构建见 `docker/Dockerfile.route-{dns,reporter,agent}`：镜像里把系统 `libmysqlclient` 软链成
-模块 Makefile 期望的 `base/mysql-connector-c` 布局（该目录不入库）。
+`server/CMakeLists.txt` 通过 `add_subdirectory` 引入本目录，并置 `WE_REACTOR_BUILD_BINS=OFF`，
+所以服务端构建不会拉进 MySQL 依赖。Docker 构建见 `docker/Dockerfile.route-{dns,reporter,agent}`。
 
 ## WeTalk patch 清单
 

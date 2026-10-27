@@ -4,7 +4,7 @@ HttpConnection::HttpConnection(boost::asio::io_context& ioc)
 	: _socket(ioc) {
 }
 
-//¿ªÆô¼àÌý¸ÃÁ´½ÓµÄÊý¾Ý½ÓÊÜÇëÇó
+//å¼€å¯ç›‘å¬è¯¥é“¾æŽ¥çš„æ•°æ®æŽ¥å—è¯·æ±‚
 void HttpConnection::Start()
 {
 	auto self = shared_from_this();
@@ -16,7 +16,7 @@ void HttpConnection::Start()
 					return;
 				}
 
-				//´¦Àí¶Áµ½µÄÊý¾Ý
+				//å¤„ç†è¯»åˆ°çš„æ•°æ®
 
 				boost::ignore_unused(bytes_transferred);
 				self->HandleReq();
@@ -29,13 +29,13 @@ void HttpConnection::Start()
 	);
 }
 
-//char ×ªÎª16½øÖÆ
+//char è½¬ä¸º16è¿›åˆ¶
 unsigned char ToHex(unsigned char x)
 {
 	return  x > 9 ? x + 55 : x + 48;
 }
 
-//16½øÖÆ×ªÎªchar
+//16è¿›åˆ¶è½¬ä¸ºchar
 unsigned char FromHex(unsigned char x)
 {
 	unsigned char y;
@@ -52,18 +52,18 @@ std::string UrlEncode(const std::string& str)
 	size_t length = str.length();
 	for (size_t i = 0; i < length; i++)
 	{
-		//ÅÐ¶ÏÊÇ·ñ½öÓÐÊý×ÖºÍ×ÖÄ¸¹¹³É
+		//åˆ¤æ–­æ˜¯å¦ä»…æœ‰æ•°å­—å’Œå­—æ¯æž„æˆ
 		if (isalnum((unsigned char)str[i]) ||
 			(str[i] == '-') ||
 			(str[i] == '_') ||
 			(str[i] == '.') ||
 			(str[i] == '~'))
 			strTemp += str[i];
-		else if (str[i] == ' ') //Îª¿Õ×Ö·û
+		else if (str[i] == ' ') //ä¸ºç©ºå­—ç¬¦
 			strTemp += "+";
 		else
 		{
-			//ÆäËû×Ö·ûÐèÒªÌáÇ°¼Ó%²¢ÇÒ¸ßËÄÎ»ºÍµÍËÄÎ»·Ö±ð×ªÎª16½øÖÆ
+			//å…¶ä»–å­—ç¬¦éœ€è¦æå‰åŠ %å¹¶ä¸”é«˜å››ä½å’Œä½Žå››ä½åˆ†åˆ«è½¬ä¸º16è¿›åˆ¶
 			strTemp += '%';
 			strTemp += ToHex((unsigned char)str[i] >> 4);
 			strTemp += ToHex((unsigned char)str[i] & 0x0F);
@@ -78,9 +78,9 @@ std::string UrlDecode(const std::string& str)
 	size_t length = str.length();
 	for (size_t i = 0; i < length; i++)
 	{
-		//»¹Ô­+Îª¿Õ
+		//è¿˜åŽŸ+ä¸ºç©º
 		if (str[i] == '+') strTemp += ' ';
-		//Óöµ½%½«ºóÃæµÄÁ½¸ö×Ö·û´Ó16½øÖÆ×ªÎªcharÔÙÆ´½Ó
+		//é‡åˆ°%å°†åŽé¢çš„ä¸¤ä¸ªå­—ç¬¦ä»Ž16è¿›åˆ¶è½¬ä¸ºcharå†æ‹¼æŽ¥
 		else if (str[i] == '%')
 		{
 			assert(i + 2 < length);
@@ -94,9 +94,9 @@ std::string UrlDecode(const std::string& str)
 }
 
 void HttpConnection::PreParseGetParam() {
-	// ÌáÈ¡ URI  
+	// æå– URI  
 	auto uri = _request.target();
-	// ²éÕÒ²éÑ¯×Ö·û´®µÄ¿ªÊ¼Î»ÖÃ£¨¼´ '?' µÄÎ»ÖÃ£©  
+	// æŸ¥æ‰¾æŸ¥è¯¢å­—ç¬¦ä¸²çš„å¼€å§‹ä½ç½®ï¼ˆå³ '?' çš„ä½ç½®ï¼‰  
 	auto query_pos = uri.find('?');
 	if (query_pos == std::string::npos) {
 		_get_url = std::string(uri);
@@ -112,13 +112,13 @@ void HttpConnection::PreParseGetParam() {
 		auto pair = query_string.substr(0, pos);
 		size_t eq_pos = pair.find('=');
 		if (eq_pos != std::string::npos) {
-			key = UrlDecode(pair.substr(0, eq_pos)); // ¼ÙÉèÓÐ url_decode º¯ÊýÀ´´¦ÀíURL½âÂë  
+			key = UrlDecode(pair.substr(0, eq_pos)); // å‡è®¾æœ‰ url_decode å‡½æ•°æ¥å¤„ç†URLè§£ç   
 			value = UrlDecode(pair.substr(eq_pos + 1));
 			_get_params[key] = value;
 		}
 		query_string.erase(0, pos + 1);
 	}
-	// ´¦Àí×îºóÒ»¸ö²ÎÊý¶Ô£¨Èç¹ûÃ»ÓÐ & ·Ö¸ô·û£©  
+	// å¤„ç†æœ€åŽä¸€ä¸ªå‚æ•°å¯¹ï¼ˆå¦‚æžœæ²¡æœ‰ & åˆ†éš”ç¬¦ï¼‰  
 	if (!query_string.empty()) {
 		size_t eq_pos = query_string.find('=');
 		if (eq_pos != std::string::npos) {
@@ -129,13 +129,13 @@ void HttpConnection::PreParseGetParam() {
 	}
 }
 
-//´¦ÀíhttpÇëÇó
+//å¤„ç†httpè¯·æ±‚
 void HttpConnection::HandleReq() {
-	//ÉèÖÃ°æ±¾
+	//è®¾ç½®ç‰ˆæœ¬
 	_response.version(_request.version());
-	//ÉèÖÃÎª¶ÌÁ´½Ó
+	//è®¾ç½®ä¸ºçŸ­é“¾æŽ¥
 	_response.keep_alive(false);
-	// ÔÊÐíËùÓÐÀ´Ô´·ÃÎÊ£¨²»°²È«µÄ×ö·¨£¬Êµ¼ÊÓ¦ÓÃÖÐÓ¦ÏÞÖÆÀ´Ô´£©
+	// å…è®¸æ‰€æœ‰æ¥æºè®¿é—®ï¼ˆä¸å®‰å…¨çš„åšæ³•ï¼Œå®žé™…åº”ç”¨ä¸­åº”é™åˆ¶æ¥æºï¼‰
 	_response.set(boost::beast::http::field::access_control_allow_origin, "*");
 	if (_request.method() == http::verb::get) {
 		PreParseGetParam();

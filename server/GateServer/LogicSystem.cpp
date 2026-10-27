@@ -57,7 +57,7 @@ LogicSystem::LogicSystem() {
 		
 	});
 
-	//¸üĞÂ¸öÈË×ÊÁÏ£¨êÇ³Æ/Ç©Ãû£©¡£key Óë ChatServer µÄ USERTOKENPREFIX ±£³ÖÒ»ÖÂ
+	//æ›´æ–°ä¸ªäººèµ„æ–™ï¼ˆæ˜µç§°/ç­¾åï¼‰ã€‚key ä¸ ChatServer çš„ USERTOKENPREFIX ä¿æŒä¸€è‡´
 	RegPost("/user_profile", [](std::shared_ptr<HttpConnection> connection) {
 		auto body_str = boost::beast::buffers_to_string(connection->_request.body().data());
 		connection->_response.set(http::field::content_type, "text/json");
@@ -78,7 +78,7 @@ LogicSystem::LogicSystem() {
 			beast::ostream(connection->_response.body()) << root.toStyledString();
 			return true;
 		}
-		// Ğ£ÑéµÇÂ¼ token
+		// æ ¡éªŒç™»å½• token
 		std::string token_key = "utoken_" + std::to_string(uid);
 		std::string token_value;
 		bool b_token = RedisMgr::GetInstance()->Get(token_key, token_value);
@@ -88,11 +88,11 @@ LogicSystem::LogicSystem() {
 			return true;
 		}
 		if (!MysqlMgr::GetInstance()->UpdateUserProfile(uid, nick, desc)) {
-			root["error"] = ErrorCodes::PasswdUpFailed; // ¸´ÓÃ"¸üĞÂÊ§°Ü"´íÎóÂë
+			root["error"] = ErrorCodes::PasswdUpFailed; // å¤ç”¨"æ›´æ–°å¤±è´¥"é”™è¯¯ç 
 			beast::ostream(connection->_response.body()) << root.toStyledString();
 			return true;
 		}
-		// Çåµô Redis »ù±¾ĞÅÏ¢»º´æ£¬ChatServer ÏÂ´ÎµÇÂ¼»áÖØĞÂ¶Á¿â
+		// æ¸…æ‰ Redis åŸºæœ¬ä¿¡æ¯ç¼“å­˜ï¼ŒChatServer ä¸‹æ¬¡ç™»å½•ä¼šé‡æ–°è¯»åº“
 		RedisMgr::GetInstance()->Del("ubaseinfo_" + std::to_string(uid));
 		root["error"] = ErrorCodes::Success;
 		root["uid"] = uid;
@@ -135,7 +135,7 @@ LogicSystem::LogicSystem() {
 		beast::ostream(connection->_response.body()) << jsonstr;
 		return true;
 	});
-	//day11 ×¢²áÓÃ»§Âß¼­
+	//day11 æ³¨å†Œç”¨æˆ·é€»è¾‘
 	RegPost("/user_register", [](std::shared_ptr<HttpConnection> connection) {
 		auto body_str = boost::beast::buffers_to_string(connection->_request.body().data());
 		std::cout << "receive body is " << body_str << std::endl;
@@ -166,7 +166,7 @@ LogicSystem::LogicSystem() {
 			return true;
 		}
 
-		//ÏÈ²éÕÒredisÖĞemail¶ÔÓ¦µÄÑéÖ¤ÂëÊÇ·ñºÏÀí
+		//å…ˆæŸ¥æ‰¾redisä¸­emailå¯¹åº”çš„éªŒè¯ç æ˜¯å¦åˆç†
 		std::string  varify_code;
 		bool b_get_varify = RedisMgr::GetInstance()->Get(CODEPREFIX+src_root["email"].asString(), varify_code);
 		if (!b_get_varify) {
@@ -185,7 +185,7 @@ LogicSystem::LogicSystem() {
 			return true;
 		}
 
-		//²éÕÒÊı¾İ¿âÅĞ¶ÏÓÃ»§ÊÇ·ñ´æÔÚ
+		//æŸ¥æ‰¾æ•°æ®åº“åˆ¤æ–­ç”¨æˆ·æ˜¯å¦å­˜åœ¨
 		int uid = MysqlMgr::GetInstance()->RegUser(name, email, pwd, icon);
 		if (uid == 0 || uid == -1) {
 			std::cout << " user or email exist" << std::endl;
@@ -207,7 +207,7 @@ LogicSystem::LogicSystem() {
 		return true;
 		});
 
-	//ÖØÖÃ»Øµ÷Âß¼­
+	//é‡ç½®å›è°ƒé€»è¾‘
 	RegPost("/reset_pwd", [](std::shared_ptr<HttpConnection> connection) {
 		auto body_str = boost::beast::buffers_to_string(connection->_request.body().data());
 		std::cout << "receive body is " << body_str << std::endl;
@@ -228,7 +228,7 @@ LogicSystem::LogicSystem() {
 		auto name = src_root["user"].asString();
 		auto pwd = src_root["passwd"].asString();
 
-		//ÏÈ²éÕÒredisÖĞemail¶ÔÓ¦µÄÑéÖ¤ÂëÊÇ·ñºÏÀí
+		//å…ˆæŸ¥æ‰¾redisä¸­emailå¯¹åº”çš„éªŒè¯ç æ˜¯å¦åˆç†
 		std::string  varify_code;
 		bool b_get_varify = RedisMgr::GetInstance()->Get(CODEPREFIX + src_root["email"].asString(), varify_code);
 		if (!b_get_varify) {
@@ -246,7 +246,7 @@ LogicSystem::LogicSystem() {
 			beast::ostream(connection->_response.body()) << jsonstr;
 			return true;
 		}
-		//²éÑ¯Êı¾İ¿âÅĞ¶ÏÓÃ»§ÃûºÍÓÊÏäÊÇ·ñÆ¥Åä
+		//æŸ¥è¯¢æ•°æ®åº“åˆ¤æ–­ç”¨æˆ·åå’Œé‚®ç®±æ˜¯å¦åŒ¹é…
 		bool email_valid = MysqlMgr::GetInstance()->CheckEmail(name, email);
 		if (!email_valid) {
 			std::cout << " user email not match" << std::endl;
@@ -256,7 +256,7 @@ LogicSystem::LogicSystem() {
 			return true;
 		}
 
-		//¸üĞÂÃÜÂëÎª×îĞÂÃÜÂë
+		//æ›´æ–°å¯†ç ä¸ºæœ€æ–°å¯†ç 
 		bool b_up = MysqlMgr::GetInstance()->UpdatePwd(name, pwd);
 		if (!b_up) {
 			std::cout << " update pwd failed" << std::endl;
@@ -277,7 +277,7 @@ LogicSystem::LogicSystem() {
 		return true;
 		});
 
-	//ÓÃ»§µÇÂ¼Âß¼­
+	//ç”¨æˆ·ç™»å½•é€»è¾‘
 	RegPost("/user_login", [](std::shared_ptr<HttpConnection> connection) {
 		auto body_str = boost::beast::buffers_to_string(connection->_request.body().data());
 		std::cout << "receive body is " << body_str << std::endl;
@@ -297,7 +297,7 @@ LogicSystem::LogicSystem() {
 		auto email = src_root["email"].asString();
 		auto pwd = src_root["passwd"].asString();
 		UserInfo userInfo;
-		//²éÑ¯Êı¾İ¿âÅĞ¶ÏÓÃ»§ÃûºÍÃÜÂëÊÇ·ñÆ¥Åä
+		//æŸ¥è¯¢æ•°æ®åº“åˆ¤æ–­ç”¨æˆ·åå’Œå¯†ç æ˜¯å¦åŒ¹é…
 		bool pwd_valid = MysqlMgr::GetInstance()->CheckPwd(email, pwd, userInfo);
 		if (!pwd_valid) {
 			std::cout << " user pwd not match" << std::endl;
@@ -307,7 +307,7 @@ LogicSystem::LogicSystem() {
 			return true;
 		}
 
-		//²éÑ¯StatusServerÕÒµ½ºÏÊÊµÄÁ¬½Ó
+		//æŸ¥è¯¢StatusServeræ‰¾åˆ°åˆé€‚çš„è¿æ¥
 		auto reply = StatusGrpcClient::GetInstance()->GetChatServer(userInfo.uid);
 		if (reply.error()) {
 			std::cout << " grpc get chat server failed, error is " << reply.error()<< std::endl;

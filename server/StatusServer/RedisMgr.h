@@ -22,15 +22,15 @@ public:
 
 			auto reply = (redisReply*)redisCommand(context, "AUTH %s", pwd);
 			if (reply->type == REDIS_REPLY_ERROR) {
-				std::cout << "ÈÏÖ¤Ê§°Ü" << std::endl;
-				//Ö´ÐÐ³É¹¦ ÊÍ·ÅredisCommandÖ´ÐÐºó·µ»ØµÄredisReplyËùÕ¼ÓÃµÄÄÚ´æ
+				std::cout << "è®¤è¯å¤±è´¥" << std::endl;
+				//æ‰§è¡ŒæˆåŠŸ é‡Šæ”¾redisCommandæ‰§è¡ŒåŽè¿”å›žçš„redisReplyæ‰€å ç”¨çš„å†…å­˜
 				freeReplyObject(reply);
 				continue;
 			}
 
-			//Ö´ÐÐ³É¹¦ ÊÍ·ÅredisCommandÖ´ÐÐºó·µ»ØµÄredisReplyËùÕ¼ÓÃµÄÄÚ´æ
+			//æ‰§è¡ŒæˆåŠŸ é‡Šæ”¾redisCommandæ‰§è¡ŒåŽè¿”å›žçš„redisReplyæ‰€å ç”¨çš„å†…å­˜
 			freeReplyObject(reply);
-			std::cout << "ÈÏÖ¤³É¹¦" << std::endl;
+			std::cout << "è®¤è¯æˆåŠŸ" << std::endl;
 			connections_.push(context);
 		}
 
@@ -42,7 +42,7 @@ public:
 					counter_ = 0;
 				}
 
-				std::this_thread::sleep_for(std::chrono::seconds(1)); // Ã¿¸ô 30 Ãë·¢ËÍÒ»´Î PING ÃüÁî
+				std::this_thread::sleep_for(std::chrono::seconds(1)); // æ¯éš” 30 ç§’å‘é€ä¸€æ¬¡ PING å‘½ä»¤
 			}	
 		});
 
@@ -69,7 +69,7 @@ public:
 			}
 			return !connections_.empty(); 
 			});
-		//Èç¹ûÍ£Ö¹ÔòÖ±½Ó·µ»Ø¿ÕÖ¸Õë
+		//å¦‚æžœåœæ­¢åˆ™ç›´æŽ¥è¿”å›žç©ºæŒ‡é’ˆ
 		if (b_stop_) {
 			return  nullptr;
 		}
@@ -113,14 +113,14 @@ private:
 	void checkThreadPro() {
 		size_t pool_size;
 		{
-			//ÏÈÄÃµ½µ±Ç°µÄÁ¬½ÓÊý
+			//å…ˆæ‹¿åˆ°å½“å‰çš„è¿žæŽ¥æ•°
 			std::lock_guard<std::mutex> lock(mutex_);
 			pool_size = connections_.size();
 		}
 
 		for (int i = 0; i < pool_size && !b_stop_; i++) {
 			redisContext* context = nullptr;
-			//1 È¡³öÒ»¸öÁ¬½Ó(³ÖÓÐËø)
+			//1 å–å‡ºä¸€ä¸ªè¿žæŽ¥(æŒæœ‰é”)
 			context = getConNonBlock();
 			if (context == nullptr) {
 				break;
@@ -129,7 +129,7 @@ private:
 			redisReply* reply = nullptr;
 			try {
 				reply = (redisReply*)redisCommand(context, "PING");
-				//2. ÏÈ¿´µ×²ã I/O Ð­Òé²ãÓÐÃ»ÓÐ´í
+				//2. å…ˆçœ‹åº•å±‚ I/O åè®®å±‚æœ‰æ²¡æœ‰é”™
 				if (context->err) {
 					std::cout << "Connection error:" << context->err << std::endl;
 					if (reply) {
@@ -141,7 +141,7 @@ private:
 					continue;
 				}
 
-				//3. ÔÙ¿´Redis×ÔÉí·µ»ØµÄÊÇ²»ÊÇERROR
+				//3. å†çœ‹Redisè‡ªèº«è¿”å›žçš„æ˜¯ä¸æ˜¯ERROR
 				if (!reply || reply->type == REDIS_REPLY_ERROR) {
 					std::cout << "reply is null,  redis ping failed: " << std::endl;
 					if (reply) {
@@ -153,7 +153,7 @@ private:
 					continue;
 				}
 
-				//4.Èç¹û¶¼Ã»ÓÐÎÊÌâ£¬Ôò°ÑÁ¬½Ó·µ»ØÁ¬½Ó³Ø
+				//4.å¦‚æžœéƒ½æ²¡æœ‰é—®é¢˜ï¼Œåˆ™æŠŠè¿žæŽ¥è¿”å›žè¿žæŽ¥æ± 
 				//std::cout << "connection alive" << std::endl;
 				freeReplyObject(reply);
 				returnConnection(context);
@@ -167,14 +167,14 @@ private:
 			}
 		}
 
-		//Ö´ÐÐÖØÁ¬²Ù×÷
+		//æ‰§è¡Œé‡è¿žæ“ä½œ
 		while (fail_count_ > 0) {
 			auto res = reconnect();
 			if (res) {
 					fail_count_--;
 			}
 			else {
-				//Áô¸øÒ»´ÎÔÙ³¢ÊÔ
+				//ç•™ç»™ä¸€æ¬¡å†å°è¯•
 				break;
 			}
 		}
@@ -191,16 +191,16 @@ private:
 
 		auto reply = (redisReply*)redisCommand(context, "AUTH %s", pwd_);
 		if (reply->type == REDIS_REPLY_ERROR) {
-			std::cout << "ÈÏÖ¤Ê§°Ü" << std::endl;
-			//Ö´ÐÐÊÍ·Å²Ù×÷
+			std::cout << "è®¤è¯å¤±è´¥" << std::endl;
+			//æ‰§è¡Œé‡Šæ”¾æ“ä½œ
 			freeReplyObject(reply);
 			redisFree(context);
 			return false;
 		}
 
-		//Ö´ÐÐ³É¹¦£¬ÊÍ·ÅredisCommandÖ´ÐÐºó·µ»ØµÄredisReplyËùÕ¼ÓÃµÄÄÚ´æ
+		//æ‰§è¡ŒæˆåŠŸï¼Œé‡Šæ”¾redisCommandæ‰§è¡ŒåŽè¿”å›žçš„redisReplyæ‰€å ç”¨çš„å†…å­˜
 		freeReplyObject(reply);
-		std::cout << "ÈÏÖ¤³É¹¦" << std::endl;
+		std::cout << "è®¤è¯æˆåŠŸ" << std::endl;
 		returnConnection(context);
 		return true;
 	}
@@ -237,15 +237,15 @@ private:
 
 				auto reply = (redisReply*)redisCommand(context, "AUTH %s", pwd_);
 				if (reply->type == REDIS_REPLY_ERROR) {
-					std::cout << "ÈÏÖ¤Ê§°Ü" << std::endl;
-					//Ö´ÐÐ³É¹¦ ÊÍ·ÅredisCommandÖ´ÐÐºó·µ»ØµÄredisReplyËùÕ¼ÓÃµÄÄÚ´æ
+					std::cout << "è®¤è¯å¤±è´¥" << std::endl;
+					//æ‰§è¡ŒæˆåŠŸ é‡Šæ”¾redisCommandæ‰§è¡ŒåŽè¿”å›žçš„redisReplyæ‰€å ç”¨çš„å†…å­˜
 					freeReplyObject(reply);
 					continue;
 				}
 
-				//Ö´ÐÐ³É¹¦ ÊÍ·ÅredisCommandÖ´ÐÐºó·µ»ØµÄredisReplyËùÕ¼ÓÃµÄÄÚ´æ
+				//æ‰§è¡ŒæˆåŠŸ é‡Šæ”¾redisCommandæ‰§è¡ŒåŽè¿”å›žçš„redisReplyæ‰€å ç”¨çš„å†…å­˜
 				freeReplyObject(reply);
-				std::cout << "ÈÏÖ¤³É¹¦" << std::endl;
+				std::cout << "è®¤è¯æˆåŠŸ" << std::endl;
 				connections_.push(context);
 			}
 		}

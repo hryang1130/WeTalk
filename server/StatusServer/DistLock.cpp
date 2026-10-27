@@ -11,19 +11,19 @@
 #include <hiredis.h>
 
 
-//¶¨Òåµ¥ÀıÄ£Ê½
+//å®šä¹‰å•ä¾‹æ¨¡å¼
 DistLock& DistLock::Inst() {
 	static DistLock lock;
 	return lock;
 }
 
-// Ê¹ÓÃ Boost UUID Éú³ÉÈ«¾ÖÎ¨Ò»±êÊ¶·û£¨UUID£©
+// ä½¿ç”¨ Boost UUID ç”Ÿæˆå…¨å±€å”¯ä¸€æ ‡è¯†ç¬¦ï¼ˆUUIDï¼‰
 static std::string generateUUID() {
 	boost::uuids::uuid uuid = boost::uuids::random_generator()();
 	return to_string(uuid);
 }
 
-// ³¢ÊÔ»ñÈ¡Ëø£¬·µ»ØËøµÄÎ¨Ò»±êÊ¶·û£¨UUID£©£¬Èç¹û»ñÈ¡Ê§°ÜÔò·µ»Ø¿Õ×Ö·û´®
+// å°è¯•è·å–é”ï¼Œè¿”å›é”çš„å”¯ä¸€æ ‡è¯†ç¬¦ï¼ˆUUIDï¼‰ï¼Œå¦‚æœè·å–å¤±è´¥åˆ™è¿”å›ç©ºå­—ç¬¦ä¸²
 std::string DistLock::acquireLock(redisContext* context, const std::string& lockName,
     int lockTimeout, int acquireTimeout) {
     std::string identifier = generateUUID();
@@ -31,39 +31,39 @@ std::string DistLock::acquireLock(redisContext* context, const std::string& lock
     auto endTime = std::chrono::steady_clock::now() + std::chrono::seconds(acquireTimeout);
 
     while (std::chrono::steady_clock::now() < endTime) {
-        // Ê¹ÓÃ SET ÃüÁî³¢ÊÔ¼ÓËø£ºSET lockKey identifier NX EX lockTimeout
+        // ä½¿ç”¨ SET å‘½ä»¤å°è¯•åŠ é”ï¼šSET lockKey identifier NX EX lockTimeout
         redisReply* reply = (redisReply*)redisCommand(context, "SET %s %s NX EX %d",
             lockKey.c_str(), identifier.c_str(), lockTimeout);
         if (reply != nullptr) {
-            // ÅĞ¶Ï·µ»Ø½á¹ûÊÇ·ñÎª OK
+            // åˆ¤æ–­è¿”å›ç»“æœæ˜¯å¦ä¸º OK
             if (reply->type == REDIS_REPLY_STATUS && std::string(reply->str) == "OK") {
                 freeReplyObject(reply);
                 return identifier;
             }
             freeReplyObject(reply);
         }
-        // ÔİÍ£ 1 ºÁÃëºóÖØÊÔ£¬·ÀÖ¹Ã¦µÈ´ı
+        // æš‚åœ 1 æ¯«ç§’åé‡è¯•ï¼Œé˜²æ­¢å¿™ç­‰å¾…
         std::this_thread::sleep_for(std::chrono::milliseconds(1));
     }
     return "";
 }
 
-// ÊÍ·ÅËø£¬Ö»ÓĞËøµÄ³ÖÓĞÕß²ÅÄÜÊÍ·Å£¬·µ»ØÊÇ·ñ³É¹¦
+// é‡Šæ”¾é”ï¼Œåªæœ‰é”çš„æŒæœ‰è€…æ‰èƒ½é‡Šæ”¾ï¼Œè¿”å›æ˜¯å¦æˆåŠŸ
 bool DistLock::releaseLock(redisContext* context, const std::string& lockName,
     const std::string& identifier) {
     std::string lockKey = "lock:" + lockName;
-    // Lua ½Å±¾£ºÅĞ¶ÏËø±êÊ¶ÊÇ·ñÆ¥Åä£¬Æ¥ÅäÔòÉ¾³ıËø
+    // Lua è„šæœ¬ï¼šåˆ¤æ–­é”æ ‡è¯†æ˜¯å¦åŒ¹é…ï¼ŒåŒ¹é…åˆ™åˆ é™¤é”
     const char* luaScript = "if redis.call('get', KEYS[1]) == ARGV[1] then \
                                 return redis.call('del', KEYS[1]) \
                              else \
                                 return 0 \
                              end";
-    // µ÷ÓÃ EVAL ÃüÁîÖ´ĞĞ Lua ½Å±¾£¬µÚÒ»¸ö²ÎÊıÎª½Å±¾£¬ºóÃæÒÀ´ÎÎª key µÄÊıÁ¿¡¢key ÒÔ¼°¶ÔÓ¦µÄ²ÎÊı
+    // è°ƒç”¨ EVAL å‘½ä»¤æ‰§è¡Œ Lua è„šæœ¬ï¼Œç¬¬ä¸€ä¸ªå‚æ•°ä¸ºè„šæœ¬ï¼Œåé¢ä¾æ¬¡ä¸º key çš„æ•°é‡ã€key ä»¥åŠå¯¹åº”çš„å‚æ•°
     redisReply* reply = (redisReply*)redisCommand(context, "EVAL %s 1 %s %s",
         luaScript, lockKey.c_str(), identifier.c_str());
     bool success = false;
     if (reply != nullptr) {
-        // µ±·µ»ØÕûÊıÖµÎª 1 Ê±£¬±íÊ¾³É¹¦É¾³ıÁËËø
+        // å½“è¿”å›æ•´æ•°å€¼ä¸º 1 æ—¶ï¼Œè¡¨ç¤ºæˆåŠŸåˆ é™¤äº†é”
         if (reply->type == REDIS_REPLY_INTEGER && reply->integer == 1) {
             success = true;
         }

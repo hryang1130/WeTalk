@@ -1,20 +1,16 @@
 FROM ubuntu:22.04 AS builder
 ARG DEBIAN_FRONTEND=noninteractive
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    build-essential make g++ protobuf-compiler libprotobuf-dev \
+    build-essential cmake g++ protobuf-compiler libprotobuf-dev \
     libmysqlclient-dev libssl-dev libzstd-dev && rm -rf /var/lib/apt/lists/*
 WORKDIR /src/we_reactor
 COPY we_reactor/ ./
-RUN protoc --cpp_out=base/proto -Ibase/proto base/proto/re.proto
-# we_reactor 模块的 Makefile 找的是它自带的 mysql-connector-c（未随源码入库），用系统 libmysqlclient-dev 顶替
-RUN mkdir -p base/mysql-connector-c/lib && \
-    ln -s /usr/include/mysql base/mysql-connector-c/include && \
-    ln -s /usr/lib/x86_64-linux-gnu/libmysqlclient.a base/mysql-connector-c/lib/libmysqlclient.a
-RUN make -C re_reactor && make -C re_lb_agent
+RUN cmake -S . -B build -DCMAKE_BUILD_TYPE=Release && \
+    cmake --build build -j"$(nproc)" --target re_lb_agent
 
 FROM ubuntu:22.04
 RUN apt-get update && apt-get install -y --no-install-recommends \
     libprotobuf23 libmysqlclient21 && rm -rf /var/lib/apt/lists/*
-COPY --from=builder /src/we_reactor/re_lb_agent/bin/* /app/
+COPY --from=builder /src/we_reactor/build/bin/re_lb_agent /app/re_lb_agent
 WORKDIR /app
 CMD ["/app/re_lb_agent"]

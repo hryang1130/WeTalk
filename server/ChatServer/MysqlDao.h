@@ -33,9 +33,9 @@ public:
 				sql::mysql::MySQL_Driver* driver = sql::mysql::get_mysql_driver_instance();
 				auto*  con = driver->connect(url_, user_, pass_);
 				con->setSchema(schema_);
-				// »ñÈ¡µ±Ç°Ê±¼ä´Á
+				// è·å–å½“å‰æ—¶é—´æˆ³
 				auto currentTime = std::chrono::system_clock::now().time_since_epoch();
-				// ½«Ê±¼ä´Á×ª»»ÎªÃë
+				// å°†æ—¶é—´æˆ³è½¬æ¢ä¸ºç§’
 				long long timestamp = std::chrono::duration_cast<std::chrono::seconds>(currentTime).count();
 				pool_.push(std::make_unique<SqlConnection>(con, timestamp));
 				std::cout << "mysql connection init success" << std::endl;
@@ -56,23 +56,23 @@ public:
 			_check_thread.detach();
 		}
 		catch (sql::SQLException& e) {
-			// ´¦ÀíÒì³£
+			// å¤„ç†å¼‚å¸¸
 			std::cout << "mysql pool init failed, error is " << e.what()<< std::endl;
 		}
 	}
 
 	void checkConnectionPro() {
-		// 1)ÏÈ¶ÁÈ¡¡°Ä¿±ê´¦ÀíÊı¡±
+		// 1)å…ˆè¯»å–â€œç›®æ ‡å¤„ç†æ•°â€
 		size_t targetCount;
 		{
 			std::lock_guard<std::mutex> guard(mutex_);
 			targetCount = pool_.size();
 		}
 
-		//2 µ±Ç°ÒÑ¾­´¦ÀíµÄÊıÁ¿
+		//2 å½“å‰å·²ç»å¤„ç†çš„æ•°é‡
 		size_t processed = 0;
 
-		//3 Ê±¼ä´Á
+		//3 æ—¶é—´æˆ³
 		auto now = std::chrono::system_clock::now().time_since_epoch();
 		long long timestamp = std::chrono::duration_cast<std::chrono::seconds>(now).count();
 
@@ -88,7 +88,7 @@ public:
 			}
 
 			bool healthy = true;
-			//½âËøºó×ö¼ì²é/ÖØÁ¬Âß¼­
+			//è§£é”ååšæ£€æŸ¥/é‡è¿é€»è¾‘
 			if (timestamp - con->_last_oper_time >= 5) {
 				try {
 					std::unique_ptr<sql::Statement> stmt(con->_con->createStatement());
@@ -150,9 +150,9 @@ public:
 	void checkConnection() {
 		std::lock_guard<std::mutex> guard(mutex_);
 		int poolsize = pool_.size();
-		// »ñÈ¡µ±Ç°Ê±¼ä´Á
+		// è·å–å½“å‰æ—¶é—´æˆ³
 		auto currentTime = std::chrono::system_clock::now().time_since_epoch();
-		// ½«Ê±¼ä´Á×ª»»ÎªÃë
+		// å°†æ—¶é—´æˆ³è½¬æ¢ä¸ºç§’
 		long long timestamp = std::chrono::duration_cast<std::chrono::seconds>(currentTime).count();
 		for (int i = 0; i < poolsize; i++) {
 			auto con = std::move(pool_.front());
@@ -173,7 +173,7 @@ public:
 			}
 			catch (sql::SQLException& e) {
 				std::cout << "Error keeping connection alive: " << e.what() << std::endl;
-				// ÖØĞÂ´´½¨Á¬½Ó²¢Ìæ»»¾ÉµÄÁ¬½Ó
+				// é‡æ–°åˆ›å»ºè¿æ¥å¹¶æ›¿æ¢æ—§çš„è¿æ¥
 				sql::mysql::MySQL_Driver* driver = sql::mysql::get_mysql_driver_instance();
 				auto* newcon = driver->connect(url_, user_, pass_);
 				newcon->setSchema(schema_);
@@ -199,15 +199,15 @@ public:
 	}
 
 	void returnConnection(std::unique_ptr<SqlConnection> con) {
-		// ¡¾¹é»¹Ç°¸´Î»ÊÂÎñ×´Ì¬¡¿²¿·Ö DAO£¨CreatePrivateChat / AddChatMsg / AddFriendApply ¡­£©
-		// »áÏÈ setAutoCommit(false) ÔÙÓÃ commit/rollback ÊÕÎ²£»Ò»µ©Ä³ÌõÂ·¾¶Ã»¸´Î»¾ÍÖ±½Ó¹é»¹£¬
-		// Á¬½Ó»á´ø×Å¡¸ÊÖ¶¯Ìá½»¡¹×´Ì¬»Øµ½³ØÀï ¡ª¡ª Ö®ºó½èÓÃËüµÄÏß³ÌÖ´ĞĞµÄËùÓĞ INSERT/UPDATE
-		// ¶¼±ä³ÉÓÀ²»Ìá½»µÄÒşÊ½ÊÂÎñ£º×Ô¼º²é²»µ½±ğÈËµÄĞÂÊı¾İ¡¢»¹Ò»Ö±³Ö×ÅĞĞËø£¬
-		// ÔÜµ½¼¸¸ö¾Í°Ñ±íËøËÀ£¬±¨ "Lock wait timeout exceeded"£¨ÏÖÏó£ºÏûÏ¢·¢²»³ö/ÊÕ²»µ½¡¢Í¼Æ¬²»äÖÈ¾£©¡£
+		// ã€å½’è¿˜å‰å¤ä½äº‹åŠ¡çŠ¶æ€ã€‘éƒ¨åˆ† DAOï¼ˆCreatePrivateChat / AddChatMsg / AddFriendApply â€¦ï¼‰
+		// ä¼šå…ˆ setAutoCommit(false) å†ç”¨ commit/rollback æ”¶å°¾ï¼›ä¸€æ—¦æŸæ¡è·¯å¾„æ²¡å¤ä½å°±ç›´æ¥å½’è¿˜ï¼Œ
+		// è¿æ¥ä¼šå¸¦ç€ã€Œæ‰‹åŠ¨æäº¤ã€çŠ¶æ€å›åˆ°æ± é‡Œ â€”â€” ä¹‹åå€Ÿç”¨å®ƒçš„çº¿ç¨‹æ‰§è¡Œçš„æ‰€æœ‰ INSERT/UPDATE
+		// éƒ½å˜æˆæ°¸ä¸æäº¤çš„éšå¼äº‹åŠ¡ï¼šè‡ªå·±æŸ¥ä¸åˆ°åˆ«äººçš„æ–°æ•°æ®ã€è¿˜ä¸€ç›´æŒç€è¡Œé”ï¼Œ
+		// æ”’åˆ°å‡ ä¸ªå°±æŠŠè¡¨é”æ­»ï¼ŒæŠ¥ "Lock wait timeout exceeded"ï¼ˆç°è±¡ï¼šæ¶ˆæ¯å‘ä¸å‡º/æ”¶ä¸åˆ°ã€å›¾ç‰‡ä¸æ¸²æŸ“ï¼‰ã€‚
 		if (con && con->_con) {
 			try {
 				if (!con->_con->getAutoCommit()) {
-					con->_con->rollback();       // ²ĞÁôÎ´Ìá½»ÊÂÎñÒ»ÂÉ»Ø¹ö£¨ÒÑ commit ¹ıµÄµ÷ÓÃÊÇ¿Õ²Ù×÷£©
+					con->_con->rollback();       // æ®‹ç•™æœªæäº¤äº‹åŠ¡ä¸€å¾‹å›æ»šï¼ˆå·² commit è¿‡çš„è°ƒç”¨æ˜¯ç©ºæ“ä½œï¼‰
 					con->_con->setAutoCommit(true);
 				}
 			}
@@ -266,7 +266,7 @@ public:
 	std::shared_ptr<UserInfo> GetUser(std::string name);
 	bool GetApplyList(int touid, std::vector<std::shared_ptr<ApplyInfo>>& applyList, int offset, int limit );
 	bool GetFriendList(int self_id, std::vector<std::shared_ptr<UserInfo> >& user_info);
-	// Î´¶ÁÏûÏ¢»ã×Ü£ºstatus=UN_READ ÇÒ recv_id=uid µÄÏûÏ¢°´·¢ËÍ·½¾ÛºÏ¼ÆÊı£¨µÇÂ¼Ê±ÏÂ·¢ÓÃ£©
+	// æœªè¯»æ¶ˆæ¯æ±‡æ€»ï¼šstatus=UN_READ ä¸” recv_id=uid çš„æ¶ˆæ¯æŒ‰å‘é€æ–¹èšåˆè®¡æ•°ï¼ˆç™»å½•æ—¶ä¸‹å‘ç”¨ï¼‰
 	bool GetUnreadSummary(int uid, std::map<int, int>& out);
 	bool GetUserThreads(
 		int64_t userId,
@@ -276,7 +276,7 @@ public:
 		bool& loadMore,
 		int& nextLastId);
 	bool CreatePrivateChat(int user1_id, int user2_id, int& thread_id);
-	// ÀúÊ·ÏûÏ¢µÄ»á»°³ÉÔ±Ğ£Ñé£ºÖ»ÔÊĞí private_chat ÀïµÄÁ½ÈËÀ­È¡¸ÃÏß³Ì
+	// å†å²æ¶ˆæ¯çš„ä¼šè¯æˆå‘˜æ ¡éªŒï¼šåªå…è®¸ private_chat é‡Œçš„ä¸¤äººæ‹‰å–è¯¥çº¿ç¨‹
 	bool IsPrivateChatMember(int thread_id, int uid);
 	std::shared_ptr<PageResult> LoadChatMsg(int threadId, int lastId, int pageSize);
 	bool AddChatMsg(std::vector<std::shared_ptr<ChatMessage>>& chat_datas);

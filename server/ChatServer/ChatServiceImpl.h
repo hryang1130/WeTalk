@@ -46,19 +46,19 @@ public:
 
 	bool GetBaseInfo(std::string base_key, int uid, std::shared_ptr<UserInfo>& userinfo);
 
-	//½ÓÊÜrpcÌßÈËÇëÇó
+	//æ¥å—rpcè¸¢äººè¯·æ±‚
 	Status NotifyKickUser(::grpc::ServerContext* context,
 		const KickUserReq* request, KickUserRsp* response) override;
 
-	//ÒÑ¶ÁÉÏ±¨¿ç»úÍ¨Öª£¨ÍÆ¸øÏûÏ¢·¢ËÍ·½ touid£©
+	//å·²è¯»ä¸ŠæŠ¥è·¨æœºé€šçŸ¥ï¼ˆæ¨ç»™æ¶ˆæ¯å‘é€æ–¹ touidï¼‰
 	Status NotifyReadMsg(::grpc::ServerContext* context,
 		const ReadMsgReq* request, ReadMsgRsp* response) override;
 
-	//É¾³ıºÃÓÑ¿ç»úÍ¨Öª£¨ÍÆ¸ø±»É¾·½ touid£©
+	//åˆ é™¤å¥½å‹è·¨æœºé€šçŸ¥ï¼ˆæ¨ç»™è¢«åˆ æ–¹ touidï¼‰
 	Status NotifyDelFriend(::grpc::ServerContext* context,
 		const DelFriendReq* request, DelFriendRsp* response) override;
 
-	//Í¼Æ¬ÏûÏ¢¿ç»úÍ¨Öª£¨ÍÆ¸ø½ÓÊÕ·½ touid£©
+	//å›¾ç‰‡æ¶ˆæ¯è·¨æœºé€šçŸ¥ï¼ˆæ¨ç»™æ¥æ”¶æ–¹ touidï¼‰
 	Status NotifyImgChatMsg(::grpc::ServerContext* context,
 		const ImgChatMsgReq* request, ImgChatMsgRsp* response) override;
 

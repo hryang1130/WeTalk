@@ -31,7 +31,7 @@ struct FileTask {
 	int _trans_size ;
 	int _last ;
 	std::string _file_data;
-	std::function<void(const Json::Value&)>  _callback;  //添加回调函数
+	std::function<void(const Json::Value&)>  _callback;  //娣诲姞鍥炶皟鍑芥暟
 };
 
 
@@ -47,7 +47,7 @@ struct DownloadTask {
 	int _seq;
 	std::string _name;
 	std::string _file_path;
-	std::function<void(const Json::Value&)>  _callback;  //添加回调函数
+	std::function<void(const Json::Value&)>  _callback;  //娣诲姞鍥炶皟鍑芥暟
 };
 
 class FileWorker

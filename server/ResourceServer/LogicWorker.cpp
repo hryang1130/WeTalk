@@ -89,14 +89,14 @@ void LogicWorker::RegisterCallBacks()
 			auto file_data = root["data"].asString();
 			auto file_path = ConfigMgr::Inst().GetFileOutPath();
 			auto uid = root["uid"].asInt();
-			//×ª»¯Îª×Ö·û´®
+			//è½¬åŒ–ä¸ºå­—ç¬¦ä¸²
 			auto uid_str = std::to_string(uid);
 			auto file_path_str = (file_path / uid_str/ name).string();
 			Json::Value  rtvalue;
 
 			auto callback = [=](const Json::Value& result) {
 
-				// ÔÚÒì²½ÈÎÎñÍê³Éºóµ÷ÓÃ
+				// åœ¨å¼‚æ­¥ä»»åŠ¡å®Œæˆåè°ƒç”¨
 				Json::Value rtvalue = result;
 				rtvalue["error"] = ErrorCodes::Success;
 				rtvalue["total_size"] = total_size;
@@ -110,22 +110,22 @@ void LogicWorker::RegisterCallBacks()
 				session->Send(return_str, ID_UPLOAD_FILE_RSP);
 			};
 			
-			// Ê¹ÓÃ std::hash ¶Ô×Ö·û´®½øĞĞ¹şÏ£
+			// ä½¿ç”¨ std::hash å¯¹å­—ç¬¦ä¸²è¿›è¡Œå“ˆå¸Œ
 			std::hash<std::string> hash_fn;
-			size_t hash_value = hash_fn(name); // Éú³É¹şÏ£Öµ
+			size_t hash_value = hash_fn(name); // ç”Ÿæˆå“ˆå¸Œå€¼
 			int index = hash_value % FILE_WORKER_COUNT;
 			std::cout << "Hash value: " << hash_value << std::endl;
 
-			//µÚÒ»¸ö°ü
+			//ç¬¬ä¸€ä¸ªåŒ…
 			if (seq == 1) {
-				//¹¹ÔìÊı¾İ´æ´¢
+				//æ„é€ æ•°æ®å­˜å‚¨
 				auto file_info = std::make_shared<FileInfo>();
 				file_info->_file_path_str = file_path_str;
 				file_info->_name = name;
 				file_info->_seq = seq;
 				file_info->_total_size = total_size;
 				file_info->_trans_size = trans_size;
-				//todo... ºóÆÚ¸ÄÎªredis,ÒÔ¼°mysql ³Ö¾Ã»¯´æ´¢
+				//todo... åæœŸæ”¹ä¸ºredis,ä»¥åŠmysql æŒä¹…åŒ–å­˜å‚¨
 				bool success = RedisMgr::GetInstance()->SetFileInfo(md5, file_info);
 				if (!success) {
 					rtvalue["error"] = ErrorCodes::FileSaveRedisFailed;
@@ -209,7 +209,7 @@ void LogicWorker::RegisterCallBacks()
 			auto uid = root["uid"].asInt();
 			auto token = root["token"].asString();
 			auto last_seq = root["last_seq"].asInt();
-			//×ª»¯Îª×Ö·û´®
+			//è½¬åŒ–ä¸ºå­—ç¬¦ä¸²
 			auto uid_str = std::to_string(uid);
 
 			auto file_path = ConfigMgr::Inst().GetFileOutPath();
@@ -217,7 +217,7 @@ void LogicWorker::RegisterCallBacks()
 			Json::Value  rtvalue;
 			auto callback = [=](const Json::Value& result) {
 
-				// ÔÚÒì²½ÈÎÎñÍê³Éºóµ÷ÓÃ
+				// åœ¨å¼‚æ­¥ä»»åŠ¡å®Œæˆåè°ƒç”¨
 				Json::Value rtvalue = result;
 				rtvalue["total_size"] = total_size;
 				rtvalue["seq"] = seq;
@@ -231,9 +231,9 @@ void LogicWorker::RegisterCallBacks()
 				session->Send(return_str, ID_UPLOAD_HEAD_ICON_RSP);
 			};
 
-			//µÚÒ»¸ö°üĞ£ÑéÒ»ÏÂtokenÊÇ·ñºÏÀí
+			//ç¬¬ä¸€ä¸ªåŒ…æ ¡éªŒä¸€ä¸‹tokenæ˜¯å¦åˆç†
 			if (seq == 1) {
-				//´Óredis»ñÈ¡ÓÃ»§tokenÊÇ·ñÕıÈ·
+				//ä»redisè·å–ç”¨æˆ·tokenæ˜¯å¦æ­£ç¡®
 				std::string uid_str = std::to_string(uid);
 				std::string token_key = USERTOKENPREFIX + uid_str;
 				std::string token_value = "";
@@ -253,15 +253,15 @@ void LogicWorker::RegisterCallBacks()
 				}
 			}
 
-			// Ê¹ÓÃ std::hash ¶Ô×Ö·û´®½øĞĞ¹şÏ£
+			// ä½¿ç”¨ std::hash å¯¹å­—ç¬¦ä¸²è¿›è¡Œå“ˆå¸Œ
 			std::hash<std::string> hash_fn;
-			size_t hash_value = hash_fn(name); // Éú³É¹şÏ£Öµ
+			size_t hash_value = hash_fn(name); // ç”Ÿæˆå“ˆå¸Œå€¼
 			int index = hash_value % FILE_WORKER_COUNT;
 			std::cout << "Hash value: " << hash_value << std::endl;
 
-			//µÚÒ»¸ö°ü
+			//ç¬¬ä¸€ä¸ªåŒ…
 			if (seq == 1) {
-				//¹¹ÔìÊı¾İ´æ´¢
+				//æ„é€ æ•°æ®å­˜å‚¨
 				auto file_info = std::make_shared<FileInfo>();
 				file_info->_file_path_str = file_path_str;
 				file_info->_name = name;
@@ -269,7 +269,7 @@ void LogicWorker::RegisterCallBacks()
 				file_info->_total_size = total_size;
 				file_info->_trans_size = trans_size;
 				//LogicSystem::GetInstance()->AddMD5File(md5, file_info);
-				//¸ÄÎªÓÃredis´æ´¢
+				//æ”¹ä¸ºç”¨rediså­˜å‚¨
 				bool success = RedisMgr::GetInstance()->SetFileInfo(name, file_info);
 				if (!success) {
 					rtvalue["error"] = ErrorCodes::FileSaveRedisFailed;
@@ -280,7 +280,7 @@ void LogicWorker::RegisterCallBacks()
 			}
 			else {
 				//auto file_info = LogicSystem::GetInstance()->GetFileInfo(md5);
-				//¸ÄÎª´ÓredisÖĞ¼ÓÔØ
+				//æ”¹ä¸ºä»redisä¸­åŠ è½½
 				auto file_info = RedisMgr::GetInstance()->GetFileInfo(name);
 				if (file_info == nullptr) {
 					rtvalue["error"] = ErrorCodes::FileNotExists;
@@ -319,15 +319,15 @@ void LogicWorker::RegisterCallBacks()
 			auto token = root["token"].asString();
 			auto client_path = root["client_path"].asString();
 
-			//×ª»¯Îª×Ö·û´®
+			//è½¬åŒ–ä¸ºå­—ç¬¦ä¸²
 			auto uid_str = std::to_string(uid);
 
 			auto file_path = ConfigMgr::Inst().GetFileOutPath();
 			auto file_path_str = (file_path / uid_str / name).string();
 
-			// ¡¾¿çÓÃ»§ÏÂÔØ¶¨Î»¡¿ÉÏ´«Ê±ÎÄ¼şÂäÔÚ¡¸ÉÏ´«·½ uid¡¹Ä¿Â¼ÏÂ£¨out/<ÉÏ´«Õß>/<name>£©£¬
-			// ¶øÕâÀïÄ¬ÈÏ°´¡¸ÇëÇó·½ uid¡¹Æ´Â·¾¶£¬ÓÚÊÇ B ÏÂÔØ A ·¢µÄÍ¼Æ¬±ØÈ» 404£¨ÎÄ¼ş²»´æÔÚ£©¡£
-			// ÁÄÌìÍ¼Æ¬µÄ name ÊÇÄÚÈİ md5£¨ÌìÈ»Î¨Ò»£©£¬ËùÒÔÖ±½Ó°´ÎÄ¼şÃûÔÚ out/* ÏÂÕÒ»ØÕæÊµÂ·¾¶¡£
+			// ã€è·¨ç”¨æˆ·ä¸‹è½½å®šä½ã€‘ä¸Šä¼ æ—¶æ–‡ä»¶è½åœ¨ã€Œä¸Šä¼ æ–¹ uidã€ç›®å½•ä¸‹ï¼ˆout/<ä¸Šä¼ è€…>/<name>ï¼‰ï¼Œ
+			// è€Œè¿™é‡Œé»˜è®¤æŒ‰ã€Œè¯·æ±‚æ–¹ uidã€æ‹¼è·¯å¾„ï¼Œäºæ˜¯ B ä¸‹è½½ A å‘çš„å›¾ç‰‡å¿…ç„¶ 404ï¼ˆæ–‡ä»¶ä¸å­˜åœ¨ï¼‰ã€‚
+			// èŠå¤©å›¾ç‰‡çš„ name æ˜¯å†…å®¹ md5ï¼ˆå¤©ç„¶å”¯ä¸€ï¼‰ï¼Œæ‰€ä»¥ç›´æ¥æŒ‰æ–‡ä»¶ååœ¨ out/* ä¸‹æ‰¾å›çœŸå®è·¯å¾„ã€‚
 			if (!name.empty() && !boost::filesystem::exists(file_path_str)) {
 				boost::system::error_code ec;
 				std::string resolved;
@@ -341,14 +341,14 @@ void LogicWorker::RegisterCallBacks()
 				}
 				if (!resolved.empty()) {
 					file_path_str = resolved;
-					std::cout << "[ÏÂÔØ] ¿çÓÃ»§¶¨Î»ÎÄ¼ş " << name << " -> " << resolved << std::endl;
+					std::cout << "[ä¸‹è½½] è·¨ç”¨æˆ·å®šä½æ–‡ä»¶ " << name << " -> " << resolved << std::endl;
 				}
 			}
 
 			Json::Value  rtvalue;
 			auto callback = [=](const Json::Value& result) {
 
-				// ÔÚÒì²½ÈÎÎñÍê³Éºóµ÷ÓÃ
+				// åœ¨å¼‚æ­¥ä»»åŠ¡å®Œæˆåè°ƒç”¨
 				Json::Value rtvalue = result;
 				rtvalue["client_path"] = client_path;
 				rtvalue["name"] = name;
@@ -356,9 +356,9 @@ void LogicWorker::RegisterCallBacks()
 				session->Send(return_str, ID_DOWN_LOAD_FILE_RSP);
 			};
 
-			//µÚÒ»¸ö°üĞ£ÑéÒ»ÏÂtokenÊÇ·ñºÏÀí
+			//ç¬¬ä¸€ä¸ªåŒ…æ ¡éªŒä¸€ä¸‹tokenæ˜¯å¦åˆç†
 			if (seq == 1) {
-				//´Óredis»ñÈ¡ÓÃ»§tokenÊÇ·ñÕıÈ·
+				//ä»redisè·å–ç”¨æˆ·tokenæ˜¯å¦æ­£ç¡®
 				std::string uid_str = std::to_string(uid);
 				std::string token_key = USERTOKENPREFIX + uid_str;
 				std::string token_value = "";
@@ -378,9 +378,9 @@ void LogicWorker::RegisterCallBacks()
 				}
 			}
 
-			// Ê¹ÓÃ std::hash ¶Ô×Ö·û´®½øĞĞ¹şÏ£
+			// ä½¿ç”¨ std::hash å¯¹å­—ç¬¦ä¸²è¿›è¡Œå“ˆå¸Œ
 			std::hash<std::string> hash_fn;
-			size_t hash_value = hash_fn(name); // Éú³É¹şÏ£Öµ
+			size_t hash_value = hash_fn(name); // ç”Ÿæˆå“ˆå¸Œå€¼
 			int index = hash_value % FILE_WORKER_COUNT;
 			std::cout << "Hash value: " << hash_value << std::endl;
 
@@ -405,14 +405,14 @@ void LogicWorker::RegisterCallBacks()
 			auto file_data = root["data"].asString();
 			auto file_path = ConfigMgr::Inst().GetFileOutPath();
 			auto uid = root["uid"].asInt();
-			//×ª»¯Îª×Ö·û´®
+			//è½¬åŒ–ä¸ºå­—ç¬¦ä¸²
 			auto uid_str = std::to_string(uid);
 			auto file_path_str = (file_path / uid_str / name).string();
 			Json::Value  rtvalue;
 
 			auto callback = [=](const Json::Value& result) {
 
-				// ÔÚÒì²½ÈÎÎñÍê³Éºóµ÷ÓÃ
+				// åœ¨å¼‚æ­¥ä»»åŠ¡å®Œæˆåè°ƒç”¨
 				Json::Value rtvalue = result;
 				rtvalue["error"] = ErrorCodes::Success;
 				rtvalue["total_size"] = total_size;
@@ -426,15 +426,15 @@ void LogicWorker::RegisterCallBacks()
 				session->Send(return_str, ID_IMG_CHAT_UPLOAD_RSP);
 			};
 
-			// Ê¹ÓÃ std::hash ¶Ô×Ö·û´®½øĞĞ¹şÏ£
+			// ä½¿ç”¨ std::hash å¯¹å­—ç¬¦ä¸²è¿›è¡Œå“ˆå¸Œ
 			std::hash<std::string> hash_fn;
-			size_t hash_value = hash_fn(name); // Éú³É¹şÏ£Öµ
+			size_t hash_value = hash_fn(name); // ç”Ÿæˆå“ˆå¸Œå€¼
 			int index = hash_value % FILE_WORKER_COUNT;
 			std::cout << "Hash value: " << hash_value << std::endl;
 
-			//µÚÒ»¸ö°ü
+			//ç¬¬ä¸€ä¸ªåŒ…
 			if (seq == 1) {
-				//¹¹ÔìÊı¾İ´æ´¢
+				//æ„é€ æ•°æ®å­˜å‚¨
 				auto file_info = std::make_shared<FileInfo>();
 				file_info->_file_path_str = file_path_str;
 				file_info->_name = name;
@@ -491,14 +491,14 @@ void LogicWorker::RegisterCallBacks()
 			auto file_data = root["data"].asString();
 			auto file_path = ConfigMgr::Inst().GetFileOutPath();
 			auto uid = root["uid"].asInt();
-			//×ª»¯Îª×Ö·û´®
+			//è½¬åŒ–ä¸ºå­—ç¬¦ä¸²
 			auto uid_str = std::to_string(uid);
 			auto file_path_str = (file_path / uid_str / name).string();
 			Json::Value  rtvalue;
 
 			auto callback = [=](const Json::Value& result) {
 
-				// ÔÚÒì²½ÈÎÎñÍê³Éºóµ÷ÓÃ
+				// åœ¨å¼‚æ­¥ä»»åŠ¡å®Œæˆåè°ƒç”¨
 				Json::Value rtvalue = result;
 				rtvalue["error"] = ErrorCodes::Success;
 				rtvalue["total_size"] = total_size;
@@ -512,15 +512,15 @@ void LogicWorker::RegisterCallBacks()
 				session->Send(return_str, ID_FILE_INFO_SYNC_RSP);
 			};
 
-			// Ê¹ÓÃ std::hash ¶Ô×Ö·û´®½øĞĞ¹şÏ£
+			// ä½¿ç”¨ std::hash å¯¹å­—ç¬¦ä¸²è¿›è¡Œå“ˆå¸Œ
 			std::hash<std::string> hash_fn;
-			size_t hash_value = hash_fn(name); // Éú³É¹şÏ£Öµ
+			size_t hash_value = hash_fn(name); // ç”Ÿæˆå“ˆå¸Œå€¼
 			int index = hash_value % FILE_WORKER_COUNT;
 			std::cout << "Hash value: " << hash_value << std::endl;
 
-			//µÚÒ»¸ö°ü
+			//ç¬¬ä¸€ä¸ªåŒ…
 			if (seq == 1) {
-				//¹¹ÔìÊı¾İ´æ´¢
+				//æ„é€ æ•°æ®å­˜å‚¨
 				auto file_info = std::make_shared<FileInfo>();
 				file_info->_file_path_str = file_path_str;
 				file_info->_name = name;
@@ -578,14 +578,14 @@ void LogicWorker::RegisterCallBacks()
 			auto file_data = root["data"].asString();
 			auto file_path = ConfigMgr::Inst().GetFileOutPath();
 			auto uid = root["uid"].asInt();
-			//×ª»¯Îª×Ö·û´®
+			//è½¬åŒ–ä¸ºå­—ç¬¦ä¸²
 			auto uid_str = std::to_string(uid);
 			auto file_path_str = (file_path / uid_str / name).string();
 			Json::Value  rtvalue;
 
 			auto callback = [=](const Json::Value& result) {
 
-				// ÔÚÒì²½ÈÎÎñÍê³Éºóµ÷ÓÃ
+				// åœ¨å¼‚æ­¥ä»»åŠ¡å®Œæˆåè°ƒç”¨
 				Json::Value rtvalue = result;
 				rtvalue["error"] = ErrorCodes::Success;
 				rtvalue["total_size"] = total_size;
@@ -599,15 +599,15 @@ void LogicWorker::RegisterCallBacks()
 				session->Send(return_str, ID_IMG_CHAT_CONTINUE_UPLOAD_RSP);
 			};
 
-			// Ê¹ÓÃ std::hash ¶Ô×Ö·û´®½øĞĞ¹şÏ£
+			// ä½¿ç”¨ std::hash å¯¹å­—ç¬¦ä¸²è¿›è¡Œå“ˆå¸Œ
 			std::hash<std::string> hash_fn;
-			size_t hash_value = hash_fn(name); // Éú³É¹şÏ£Öµ
+			size_t hash_value = hash_fn(name); // ç”Ÿæˆå“ˆå¸Œå€¼
 			int index = hash_value % FILE_WORKER_COUNT;
 			std::cout << "Hash value: " << hash_value << std::endl;
 
-			//µÚÒ»¸ö°ü
+			//ç¬¬ä¸€ä¸ªåŒ…
 			if (seq == 1) {
-				//¹¹ÔìÊı¾İ´æ´¢
+				//æ„é€ æ•°æ®å­˜å‚¨
 				auto file_info = std::make_shared<FileInfo>();
 				file_info->_file_path_str = file_path_str;
 				file_info->_name = name;

@@ -36,7 +36,7 @@ void CServer::StartAccept() {
 void CServer::ClearSession(std::string uuid) {
 	
 	if (_sessions.find(uuid) != _sessions.end()) {
-		//ÒÆ³ýÓÃ»§ºÍsessionµÄ¹ØÁª
+		//ç§»é™¤ç”¨æˆ·å’Œsessionçš„å…³è”
 		UserMgr::GetInstance()->RmvUserSession(_sessions[uuid]->GetUserId());
 	}
 
