@@ -43,7 +43,7 @@ add_library(lars_reactor STATIC ${LARS_REACTOR_SRC})
 target_include_directories(lars_reactor PUBLIC ${LARS_DIR}/lars_reactor/include)
 target_link_libraries(lars_reactor PUBLIC pthread dl protobuf::libprotobuf)
 
-# ---------- WeTalk 路由治理 API（route_client，勿与 vendored api/cpp 同链，符号重复） ----------
+# ---------- WeTalk 路由治理 API（route_client，自研版；vendored api/ 已从仓库剔除，避免同名类符号重复） ----------
 add_library(route_api STATIC common/route/route_api.cpp)
 target_include_directories(route_api PUBLIC common/route ${CMAKE_CURRENT_BINARY_DIR})
 target_link_libraries(route_api PUBLIC lars_reactor lars_proto)

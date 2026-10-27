@@ -30,7 +30,10 @@ The project was integrated from **llfcchat** (chat microservices), then a self-b
    on a **fresh** MySQL volume. Business DB name is `wetalk`; route table DB is `wetalk_route`.
    // 改了建表脚本必须 down -v 重建卷，否则永远不生效。
 
-5. **`server/_attic/` is dead code.** Never build or edit it (outdated copy kept for reference).
+5. **No dead trees in the working copy.** Archive copies (`server/_attic/`), one-off repro scripts and the vendored
+   upstream examples/tests were removed on 2026-10-26. Dead code belongs in git history, not in the tree — do not
+   re-add `Test*` scratch functions to `main` files or copy upstream `example/` dirs back in.
+   // 死代码留在 git 历史里；别再往 main 文件里塞测试函数、也别把上游 example/ 拷回来。
 
 6. **Never run `git rm -r --cached <dir>` on this machine.** A local git quirk deletes the whole
    parent directory **from disk** (this actually happened, 2026-10-23, took out `client-electron/`

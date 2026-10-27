@@ -104,7 +104,7 @@ node test-profile.js    # /user_profile 端点联调
 ```
 wetalk/
 ├── server/                # 服务端源码（含 Linux CMake）+ common/WetalkRouteClient + common/route（路由治理 API）
-├── third_party/Lars/      # 治理层内部实现（vendored，sparse checkout，base/ 因含 Windows 非法文件名未检出，lars.proto 已补齐）
+├── third_party/Lars/      # 治理层内部实现（vendored，仅保留 lars_reactor + dns/reporter/lb_agent 四个可构建模块；上游示例与测试已剔除）
 ├── docker/
 │   ├── Dockerfile.service / Dockerfile.varify / Dockerfile.route-*
 │   ├── configs/           # 每个服务的容器版 config.ini（Mysql/Redis 指向容器服务名）
@@ -163,8 +163,8 @@ docker compose logs -f status route-agent
 - [ ] vendored 实现 `get_route` 的 IP 字节序转换疑似有双重转换（ntohl 后直接赋给 s_addr），已在 `common/route/route_api.cpp` 保持原行为并标注；首次联调时优先用 `get_route` 打印验证。
 - [ ] vendored `dns_route.cpp` 用 `atoi` 读 serverip（>2^31 会溢出），建议后续改 `strtoul`。
 - [ ] protobuf 生成文件（message.pb.cc 等）是老版本 protoc 产物，Linux 构建统一用 CMake 重新生成，Windows 侧如混用需注意版本。
-- [x] ChatServer2 源码目录已归档到 `server/_attic/ChatServer2-outdated/`（它是**不含后续自研修改的旧拷贝**，构建一律用 ChatServer + 两份 config.ini，见 compose chat1/chat2）。
-- [x] VarifyServer 补了 config.ini；ResourceServer 为自建服务，其配置项已含在本目录 `docker/configs/`。
+- [x] ChatServer2 旧源码副本（`server/_attic/`）已删除：它是不含后续自研修改的历史拷贝，构建一律用 `ChatServer` + 两份 config.ini（compose chat1/chat2）。
+- [x] VarifyServer 是 Node 服务，只读 `config.json`（容器版在 `docker/configs/VarifyServer/`）；多余的 `config.ini` 已删除。ResourceServer 为自建服务，其配置项已含在本目录 `docker/configs/`。
 
 ## 容器化联调注意（inet_aton 坑）
 

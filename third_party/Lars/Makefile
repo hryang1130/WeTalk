@@ -1,4 +1,5 @@
-SUBDIRS = lars_reactor lars_dns lars_reporter lars_loadbalance_agent api/cpp/lars_api api/cpp/example lars_reactor/example/qps_test
+# WeTalk: upstream examples/api/tests are trimmed; only the modules we actually build are kept
+SUBDIRS = lars_reactor lars_dns lars_reporter lars_loadbalance_agent
 
 .PHONY: all
 
